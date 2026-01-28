@@ -488,18 +488,25 @@ export const api = {
     // =====================================================
 
     getTenants: async (): Promise<Tenant[]> => {
+        console.log('[API] Initializing getTenants call...');
         try {
             const { data, error } = await supabase
                 .from('tenants')
                 .select(`
           *,
           plan:plans (nombre, user_limit, storage_limit)
-        `)
-                .order('fecha_creacion', { ascending: false });
+        `);
 
-            if (error) throw error;
+            if (error) {
+                console.error('[API] Error in getTenants:', error);
+                throw error;
+            }
 
-            return data.map(t => ({
+            console.log('[API] getTenants raw data:', data);
+
+            if (!data) return [];
+
+            const mapped = data.map(t => ({
                 id: t.id,
                 nombre: t.nombre,
                 subdominio: t.subdominio,
@@ -512,8 +519,11 @@ export const api = {
                 userLimit: (Array.isArray(t.plan) ? t.plan[0] : t.plan)?.user_limit || 0,
                 storageLimit: (Array.isArray(t.plan) ? t.plan[0] : t.plan)?.storage_limit || 0,
             }));
+
+            console.log('[API] getTenants mapped data:', mapped);
+            return mapped;
         } catch (error) {
-            console.error('Error fetching tenants:', error);
+            console.error('[API] Fatal Error fetching tenants:', error);
             return [];
         }
     },
@@ -923,14 +933,22 @@ export const api = {
     // =====================================================
 
     getPlans: async (): Promise<Plan[]> => {
+        console.log('[API] Initializing getPlans call...');
         try {
             const { data, error } = await supabase
                 .from('plans')
                 .select('*');
 
-            if (error) throw error;
+            if (error) {
+                console.error('[API] Error in getPlans:', error);
+                throw error;
+            }
 
-            return data.map(p => ({
+            console.log('[API] getPlans raw data:', data);
+
+            if (!data) return [];
+
+            const mapped = data.map(p => ({
                 id: p.id,
                 nombre: p.nombre,
                 precio: parseFloat(p.precio),
@@ -938,8 +956,11 @@ export const api = {
                 storageLimit: p.storage_limit,
                 descripcion: p.descripcion,
             }));
+
+            console.log('[API] getPlans mapped data:', mapped);
+            return mapped;
         } catch (error) {
-            console.error('Error fetching plans:', error);
+            console.error('[API] Fatal Error fetching plans:', error);
             return [];
         }
     },
