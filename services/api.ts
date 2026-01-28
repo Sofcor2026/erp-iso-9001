@@ -568,16 +568,18 @@ export const api = {
 
             if (tenantError) throw tenantError;
 
-            // Crear usuario admin en Supabase Auth
-            const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-                email: adminData.email,
-                email_confirm: true,
-                user_metadata: {
+            // Crear usuario admin de forma segura usando una Edge Function
+            // Esto evita el error 403 ya que las Edge Functions tienen acceso al Service Role Key de forma segura
+            const { data: functionData, error: functionError } = await supabase.functions.invoke('create-admin-user', {
+                body: {
+                    email: adminData.email,
                     nombre: adminData.nombre
                 }
             });
 
-            if (authError) throw authError;
+            if (functionError) throw new Error(functionError.message || 'Error al crear el usuario administrador');
+
+            const authUser = functionData.user;
 
             // Obtener rol de ADMIN
             const { data: adminRole } = await supabase
@@ -590,7 +592,7 @@ export const api = {
 
             // Crear usuario en tabla users
             await supabase.from('users').insert({
-                id: authData.user.id,
+                id: authUser.id,
                 email: adminData.email,
                 nombre: adminData.nombre,
                 role_id: adminRole.id,
