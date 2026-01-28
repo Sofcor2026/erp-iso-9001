@@ -214,7 +214,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           )
         `)
                 .eq('tenant_id', tenantId)
-                .eq('role.name', 'ADMIN')
+                .eq('role_id', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')
                 .single();
 
             if (error || !data) {

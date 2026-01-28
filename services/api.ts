@@ -1180,7 +1180,7 @@ export const api = {
                 .from('users')
                 .select('*', { count: 'exact', head: true })
                 .eq('activo', true)
-                .neq('role.name', 'SUPERADMIN');
+                .neq('role_id', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
 
             if (usersError) throw usersError;
 
