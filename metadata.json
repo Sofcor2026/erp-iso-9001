@@ -1,0 +1,5 @@
+{
+  "name": "ERP ISO 9000 Drive",
+  "description": "Un sistema ERP multi-tenant con una interfaz tipo Google Drive para gestionar documentación ISO 9000, KPIs y formularios. Cuenta con cuatro perfiles de usuario distintos (SuperAdmin, Admin, Editor, Lector) con control de acceso basado en roles y total interconectividad entre módulos.",
+  "requestFramePermissions": []
+}
