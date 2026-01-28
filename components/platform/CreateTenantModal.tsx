@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plan, User } from '../../types';
-import { X, Building, Loader2 } from 'lucide-react';
+import { Plan, User as UserType } from '../../types';
+import { X, Building, Loader2, User as UserIcon } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -26,12 +26,12 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
 
   useEffect(() => {
     if (isOpen) {
-        api.getPlans().then(fetchedPlans => {
-            setPlans(fetchedPlans);
-            if (fetchedPlans.length > 0) {
-                setPlanId(fetchedPlans[0].id); // Default to the first plan
-            }
-        });
+      api.getPlans().then(fetchedPlans => {
+        setPlans(fetchedPlans);
+        if (fetchedPlans.length > 0) {
+          setPlanId(fetchedPlans[0].id); // Default to the first plan
+        }
+      });
     }
   }, [isOpen]);
 
@@ -70,7 +70,7 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
     const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
     setSubdominio(value);
   };
-  
+
   const clearForm = () => {
     setNombre('');
     setSubdominio('');
@@ -90,30 +90,30 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!actor) {
-        setFormError("No se pudo identificar al SuperAdmin. Por favor, inicie sesión de nuevo.");
-        return;
+      setFormError("No se pudo identificar al SuperAdmin. Por favor, inicie sesión de nuevo.");
+      return;
     }
     if (subdomainError || !nombre || !subdominio || !adminNombre || !adminEmail || !planId) {
-        setFormError("Por favor, complete todos los campos requeridos y corrija los errores.");
-        return;
+      setFormError("Por favor, complete todos los campos requeridos y corrija los errores.");
+      return;
     }
     setFormError('');
     setIsSubmitting(true);
 
     try {
-        await api.createTenant(
-            { nombre, subdominio, planId },
-            { nombre: adminNombre, email: adminEmail },
-            actor
-        );
-        alert(`Tenant "${nombre}" creado exitosamente.`);
-        onSuccess();
-        handleClose();
+      await api.createTenant(
+        { nombre, subdominio, planId },
+        { nombre: adminNombre, email: adminEmail },
+        actor
+      );
+      alert(`Tenant "${nombre}" creado exitosamente.`);
+      onSuccess();
+      handleClose();
     } catch (error) {
-        console.error("Failed to create tenant", error);
-        setFormError("Ocurrió un error al crear el tenant. Inténtelo de nuevo.");
+      console.error("Failed to create tenant", error);
+      setFormError("Ocurrió un error al crear el tenant. Inténtelo de nuevo.");
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -131,64 +131,95 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
             {/* Tenant Info */}
-            <div className="p-4 border rounded-md">
-                <h3 className="font-medium text-gray-700 mb-2">Datos de la Empresa</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label htmlFor="tenant-name" className="block text-sm font-medium text-gray-700">Nombre de la Empresa</label>
-                        <input type="text" id="tenant-name" value={nombre} onChange={e => setNombre(e.target.value)} required className="mt-1 block w-full input-style" />
-                    </div>
-                    <div>
-                        <label htmlFor="tenant-plan" className="block text-sm font-medium text-gray-700">Plan Asignado</label>
-                        <select id="tenant-plan" value={planId} onChange={e => setPlanId(e.target.value)} className="mt-1 block w-full input-style">
-                            {plans.map(p => (
-                                <option key={p.id} value={p.id}>{p.nombre} (${p.precio}/mes)</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="md:col-span-2">
-                        <label htmlFor="tenant-subdomain" className="block text-sm font-medium text-gray-700">Subdominio</label>
-                        <div className="mt-1 flex rounded-md shadow-sm">
-                             <input 
-                                type="text" 
-                                id="tenant-subdomain" 
-                                value={subdominio} 
-                                onChange={handleSubdomainChange} 
-                                required 
-                                className={`flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md focus:ring-brand-primary focus:border-brand-primary sm:text-sm border-gray-300 ${subdomainError ? 'border-red-500' : ''}`} 
-                             />
-                             <span className="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">.isodrive.com</span>
-                        </div>
-                        {isSubdomainChecking && <p className="text-sm text-gray-500 mt-1 flex items-center"><Loader2 className="animate-spin mr-2" size={16}/> Verificando...</p>}
-                        {subdomainError && <p className="text-sm text-red-600 mt-1">{subdomainError}</p>}
-                    </div>
+            <div className="p-5 backdrop-blur-sm bg-blue-50/30 border border-blue-100 rounded-2xl">
+              <h3 className="flex items-center gap-2 font-bold text-blue-900 mb-4">
+                <Building className="text-blue-600" size={20} />
+                Datos de la Empresa
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label htmlFor="tenant-name" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">Nombre Comercial</label>
+                  <input type="text" id="tenant-name" value={nombre} onChange={e => setNombre(e.target.value)} required placeholder="Ej: Industrias Metalurgicas S.A." className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none" />
                 </div>
-            </div>
-             {/* Admin Info */}
-            <div className="p-4 border rounded-md">
-                 <h3 className="font-medium text-gray-700 mb-2">Administrador Inicial</h3>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div>
-                        <label htmlFor="admin-name" className="block text-sm font-medium text-gray-700">Nombre del Admin</label>
-                        <input type="text" id="admin-name" value={adminNombre} onChange={e => setAdminNombre(e.target.value)} required className="mt-1 block w-full input-style" />
-                     </div>
-                     <div>
-                        <label htmlFor="admin-email" className="block text-sm font-medium text-gray-700">Email del Admin</label>
-                        <input type="email" id="admin-email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} required className="mt-1 block w-full input-style" />
-                     </div>
+                <div>
+                  <label htmlFor="tenant-plan" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">Plan de Suscripción</label>
+                  <select id="tenant-plan" value={planId} onChange={e => setPlanId(e.target.value)} className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer">
+                    {plans.length === 0 ? (
+                      <option disabled>Cargando planes...</option>
+                    ) : (
+                      plans.map(p => (
+                        <option key={p.id} value={p.id}>{p.nombre} - ${p.precio.toLocaleString()}/mes</option>
+                      ))
+                    )}
+                  </select>
                 </div>
-                 <p className="text-xs text-gray-500 mt-3">Se enviará un correo de bienvenida al administrador con una contraseña provisional para su primer inicio de sesión.</p>
+                <div className="md:col-span-2">
+                  <label htmlFor="tenant-subdomain" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">Identificador de Acceso (Subdominio)</label>
+                  <div className="mt-1 flex rounded-xl overflow-hidden border border-gray-200 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+                    <input
+                      type="text"
+                      id="tenant-subdomain"
+                      value={subdominio}
+                      onChange={handleSubdomainChange}
+                      required
+                      placeholder="minimo 3 letras"
+                      className={`flex-1 min-w-0 block w-full px-4 py-3 border-none outline-none ${subdomainError ? 'text-red-600' : ''}`}
+                    />
+                    <span className="inline-flex items-center px-4 bg-gray-50 text-gray-400 font-medium text-sm border-l border-gray-200">.isodrive.app</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-2 px-1">Nota: Este alias identificará a la empresa en la plataforma (ej: {subdominio || 'empresa'}.isodrive.app)</p>
+                  {isSubdomainChecking && <p className="text-xs text-blue-600 mt-2 flex items-center animate-pulse"><Loader2 className="animate-spin mr-2" size={14} /> Verificando disponibilidad...</p>}
+                  {subdomainError && <p className="text-xs text-red-600 mt-2 flex items-center">{subdomainError}</p>}
+                </div>
+              </div>
             </div>
-            
-            {formError && <p className="text-sm text-red-600">{formError}</p>}
+
+            {/* Admin Info */}
+            <div className="p-5 bg-gray-50/50 border border-gray-100 rounded-2xl">
+              <h3 className="flex items-center gap-2 font-bold text-gray-800 mb-4">
+                <UserIcon className="text-gray-500" size={20} />
+                Administrador de la Cuenta
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label htmlFor="admin-name" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">Nombre Completo</label>
+                  <input type="text" id="admin-name" value={adminNombre} onChange={e => setAdminNombre(e.target.value)} required placeholder="Ej: Juan Pérez" className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div>
+                  <label htmlFor="admin-email" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">Email Corporativo</label>
+                  <input type="email" id="admin-email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} required placeholder="ejemplo@empresa.com" className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+              </div>
+              <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                <p className="text-xs text-amber-700 leading-relaxed font-medium">
+                  Se enviará automáticamente un correo con las credenciales de acceso una vez creado el perfil.
+                </p>
+              </div>
+            </div>
+
+            {formError && (
+              <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+                <p className="text-sm text-red-600 font-medium text-center">{formError}</p>
+              </div>
+            )}
           </div>
-          <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3">
-            <button type="button" onClick={handleClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50">
+          <div className="px-8 py-5 bg-white border-t rounded-b-3xl flex justify-end gap-3">
+            <button type="button" onClick={handleClose} className="px-6 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-xl transition-all">
               Cancelar
             </button>
-            <button type="submit" disabled={isSubmitting || !!subdomainError || isSubdomainChecking} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary border border-transparent rounded-md shadow-sm hover:bg-brand-secondary disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center">
-              {isSubmitting && <Loader2 className="animate-spin mr-2" size={16}/>}
-              {isSubmitting ? 'Creando...' : 'Crear Tenant'}
+            <button
+              type="submit"
+              disabled={isSubmitting || !!subdomainError || isSubdomainChecking}
+              className="px-8 py-3 text-sm font-extrabold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:cursor-not-allowed rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  Creando Empresa...
+                </>
+              ) : (
+                'Crear Nueva Empresa'
+              )}
             </button>
           </div>
         </form>
