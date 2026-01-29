@@ -100,6 +100,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         let isMounted = true;
 
+        // --- SAFETY TIMEOUT ---
+        const timeoutId = setTimeout(() => {
+            if (isMounted && loading) {
+                console.warn('Auth check timed out. Forcing load completion.');
+                setLoading(false);
+            }
+        }, 5000);
+
         async function initAuth() {
             try {
                 setLoading(true);
@@ -125,6 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } finally {
                 if (isMounted) {
                     setLoading(false);
+                    clearTimeout(timeoutId);
                 }
             }
         }
@@ -135,26 +144,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             async (event, session) => {
                 if (!isMounted) return;
 
+                console.log('Auth event:', event);
+
                 if (event === 'SIGNED_OUT') {
                     setUser(null);
                     setOriginalUser(null);
                     localStorage.removeItem('erp-original-user');
                     setLoading(false);
+                    clearTimeout(timeoutId);
                     return;
                 }
 
-                if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-                    // Solo fetch si no tenemos el usuario ya cargado para este ID
-                    if (user?.id !== session.user.id) {
-                        const userData = await fetchUserData(session.user.id);
-                        if (userData && isMounted) {
-                            setUser(userData);
-                        }
+                if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user) {
+                    // Solo fetch si no tenemos el usuario cargado
+                    const userData = await fetchUserData(session.user.id);
+                    if (userData && isMounted) {
+                        setUser(userData);
                     }
                 }
 
                 if (isMounted) {
                     setLoading(false);
+                    clearTimeout(timeoutId);
                 }
             }
         );
@@ -162,8 +173,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => {
             isMounted = false;
             subscription.unsubscribe();
+            clearTimeout(timeoutId);
         };
-    }, [fetchUserData, user?.id]);
+    }, [fetchUserData]); // user?.id removed to avoid loops
 
     const login = async (email: string, password: string) => {
         setLoading(true);
