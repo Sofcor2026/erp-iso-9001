@@ -17,6 +17,7 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
   const [planId, setPlanId] = useState('');
   const [adminNombre, setAdminNombre] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [isSubdomainChecking, setIsSubdomainChecking] = useState(false);
@@ -77,6 +78,7 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
     setPlanId(plans.length > 0 ? plans[0].id : '');
     setAdminNombre('');
     setAdminEmail('');
+    setAdminPassword('');
     setSubdomainError('');
     setFormError('');
     setIsSubmitting(false);
@@ -93,7 +95,7 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
       setFormError("No se pudo identificar al SuperAdmin. Por favor, inicie sesión de nuevo.");
       return;
     }
-    if (subdomainError || !nombre || !subdominio || !adminNombre || !adminEmail || !planId) {
+    if (subdomainError || !nombre || !subdominio || !adminNombre || !adminEmail || !adminPassword || !planId) {
       setFormError("Por favor, complete todos los campos requeridos y corrija los errores.");
       return;
     }
@@ -103,7 +105,7 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
     try {
       await api.createTenant(
         { nombre, subdominio, planId },
-        { nombre: adminNombre, email: adminEmail },
+        { nombre: adminNombre, email: adminEmail, password: adminPassword },
         actor
       );
       alert(`Tenant "${nombre}" creado exitosamente.`);
@@ -188,6 +190,10 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
                 <div>
                   <label htmlFor="admin-email" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">Email Corporativo</label>
                   <input type="email" id="admin-email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} required placeholder="ejemplo@empresa.com" className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div>
+                  <label htmlFor="admin-password" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">Contraseña Inicial</label>
+                  <input type="password" id="admin-password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} required placeholder="••••••••" className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
               </div>
               <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-100">

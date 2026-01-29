@@ -6,6 +6,7 @@ import PurchaseOrderPage from './PurchaseOrderPage';
 import MyTasksPage from './tenant/MyTasksPage';
 import TenantSettingsPage from './tenant/TenantSettingsPage';
 import TenantAuditPage from './tenant/TenantAuditPage';
+import TenantUserPage from './tenant/TenantUserPage';
 import { ProcessType, DocumentType } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import TenantSidebar from '../components/tenant/TenantSidebar';
@@ -76,6 +77,7 @@ const Dashboard: React.FC = () => {
               <Route path="/master-list/documents" element={<MasterListPage />} />
               <Route path="/tenant/settings" element={<TenantSettingsPage />} />
               <Route path="/tenant/audit" element={<TenantAuditPage />} />
+              <Route path="/tenant/users" element={<TenantUserPage />} />
               <Route path="/*" element={<TenantHomeRedirect />} />
             </Routes>
           </div>

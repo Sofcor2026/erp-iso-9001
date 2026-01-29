@@ -17,28 +17,30 @@ const UploadTemplateModal: React.FC<UploadTemplateModalProps> = ({ isOpen, onClo
 
   const [nombre, setNombre] = useState('');
   const [tipo, setTipo] = useState<TemplateType>('COTIZACION');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState('');
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const clearForm = () => {
     setNombre('');
     setTipo('COTIZACION');
+    setSelectedFile(null);
     setFileName('');
     setError('');
     setIsSubmitting(false);
   };
-  
+
   useEffect(() => {
     if (isOpen) {
-        if (isEditMode) {
-            setNombre(template.nombre);
-            setTipo(template.tipo);
-            setFileName(''); // Clear filename on open, as it's for a *new* file
-        } else {
-            clearForm();
-        }
+      if (isEditMode) {
+        setNombre(template.nombre);
+        setTipo(template.tipo);
+        setFileName(''); // Clear filename on open, as it's for a *new* file
+      } else {
+        clearForm();
+      }
     }
   }, [isOpen, template, isEditMode]);
 
@@ -50,8 +52,8 @@ const UploadTemplateModal: React.FC<UploadTemplateModalProps> = ({ isOpen, onClo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-        setError("No se ha podido identificar al usuario.");
-        return;
+      setError("No se ha podido identificar al usuario.");
+      return;
     }
     // In edit mode, filename is not required
     if (!nombre || !tipo || (!isEditMode && !fileName)) {
@@ -60,32 +62,35 @@ const UploadTemplateModal: React.FC<UploadTemplateModalProps> = ({ isOpen, onClo
     }
     setError('');
     setIsSubmitting(true);
-    
+
     try {
-        if (isEditMode) {
-            await api.updateTemplate(
-                template.id, 
-                { nombre, tipo, newFile: !!fileName },
-                user
-            );
-            alert(`Plantilla "${nombre}" actualizada exitosamente.`);
-        } else {
-            await api.uploadTemplate({ nombre, tipo }, user);
-            alert(`Plantilla "${nombre}" subida exitosamente.`);
-        }
-        onSuccess();
-        handleClose();
+      if (isEditMode) {
+        await api.updateTemplate(
+          template.id,
+          { nombre, tipo, file: selectedFile || undefined },
+          user
+        );
+        alert(`Plantilla "${nombre}" actualizada exitosamente.`);
+      } else {
+        if (!selectedFile) throw new Error("Debe seleccionar un archivo.");
+        await api.uploadTemplate({ nombre, tipo, file: selectedFile }, user);
+        alert(`Plantilla "${nombre}" subida exitosamente.`);
+      }
+      onSuccess();
+      handleClose();
     } catch (err) {
-        console.error("Failed to upload/update template", err);
-        setError("Ocurrió un error al guardar la plantilla.");
+      console.error("Failed to upload/update template", err);
+      setError("Ocurrió un error al guardar la plantilla.");
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
-  
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setFileName(e.target.files[0].name);
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setFileName(file.name);
     }
   };
 
@@ -115,22 +120,22 @@ const UploadTemplateModal: React.FC<UploadTemplateModalProps> = ({ isOpen, onClo
               </select>
             </div>
             <div>
-                <label className="block text-sm font-medium text-gray-700">{isEditMode ? 'Reemplazar Archivo (Opcional)' : 'Archivo'}</label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                    <div className="space-y-1 text-center">
-                        <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
-                        <div className="flex text-sm text-gray-600">
-                            <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-brand-primary hover:text-brand-secondary focus-within:outline-none">
-                                <span>Sube un archivo</span>
-                                <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} />
-                            </label>
-                             <p className="pl-1">{isEditMode ? 'para reemplazar el existente' : '(.html, .hbs)'}</p>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                           {fileName ? <span className="font-medium text-gray-700">Seleccionado: {fileName}</span> : 'Hasta 2MB'}
-                        </p>
-                    </div>
+              <label className="block text-sm font-medium text-gray-700">{isEditMode ? 'Reemplazar Archivo (Opcional)' : 'Archivo'}</label>
+              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                <div className="space-y-1 text-center">
+                  <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+                  <div className="flex text-sm text-gray-600">
+                    <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-brand-primary hover:text-brand-secondary focus-within:outline-none">
+                      <span>Sube un archivo</span>
+                      <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} />
+                    </label>
+                    <p className="pl-1">{isEditMode ? 'para reemplazar el existente' : '(.html, .hbs)'}</p>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {fileName ? <span className="font-medium text-gray-700">Seleccionado: {fileName}</span> : 'Hasta 2MB'}
+                  </p>
                 </div>
+              </div>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
           </div>
@@ -139,7 +144,7 @@ const UploadTemplateModal: React.FC<UploadTemplateModalProps> = ({ isOpen, onClo
               Cancelar
             </button>
             <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary border border-transparent rounded-md shadow-sm hover:bg-brand-secondary disabled:bg-gray-400 flex items-center">
-              {isSubmitting && <Loader2 className="animate-spin mr-2" size={16}/>}
+              {isSubmitting && <Loader2 className="animate-spin mr-2" size={16} />}
               {isSubmitting ? (isEditMode ? 'Guardando...' : 'Subiendo...') : (isEditMode ? 'Guardar Cambios' : 'Subir Plantilla')}
             </button>
           </div>

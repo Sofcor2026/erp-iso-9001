@@ -78,65 +78,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, []);
 
-    // Verificar sesión al cargar
-    const checkAuth = useCallback(async () => {
-        setLoading(true);
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
+    // Establecer el usuario inicial si ya hay una sesión (sin esperar al listener)
+    useEffect(() => {
+        let isMounted = true;
 
-            if (session?.user) {
-                const userData = await fetchUserData(session.user.id);
-                if (userData) {
-                    setUser(userData);
-
-                    // Restaurar impersonation si existe
-                    const storedOriginalUser = localStorage.getItem('erp-original-user');
-                    if (storedOriginalUser) {
-                        setOriginalUser(JSON.parse(storedOriginalUser));
+        async function initAuth() {
+            setLoading(true);
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user && isMounted) {
+                    const userData = await fetchUserData(session.user.id);
+                    if (userData && isMounted) {
+                        setUser(userData);
+                        // Restaurar impersonation si existe
+                        const storedOriginalUser = localStorage.getItem('erp-original-user');
+                        if (storedOriginalUser) {
+                            setOriginalUser(JSON.parse(storedOriginalUser));
+                        }
                     }
                 }
+            } catch (error) {
+                console.error('Initial session check failed:', error);
+            } finally {
+                if (isMounted) setLoading(false);
             }
-        } catch (error) {
-            console.error('Failed to check auth status', error);
-            setUser(null);
-            setOriginalUser(null);
-            localStorage.removeItem('erp-original-user');
-        } finally {
-            setLoading(false);
         }
-    }, [fetchUserData]);
 
-    useEffect(() => {
-        checkAuth();
+        initAuth();
 
         // Escuchar cambios en la autenticación
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
+                if (!isMounted) return;
+
                 console.log('Auth state changed:', event);
 
-                if (event === 'SIGNED_IN' && session?.user) {
-                    const userData = await fetchUserData(session.user.id);
-                    if (userData) {
-                        setUser(userData);
+                if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+                    // Solo fetch si el ID es diferente o no tenemos usuario
+                    if (!user || user.id !== session.user.id) {
+                        const userData = await fetchUserData(session.user.id);
+                        if (userData && isMounted) {
+                            setUser(userData);
+                        }
                     }
                 } else if (event === 'SIGNED_OUT') {
                     setUser(null);
                     setOriginalUser(null);
                     localStorage.removeItem('erp-original-user');
-                } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-                    // Actualizar datos del usuario si el token se refresca
-                    const userData = await fetchUserData(session.user.id);
-                    if (userData) {
-                        setUser(userData);
-                    }
                 }
             }
         );
 
         return () => {
+            isMounted = false;
             subscription.unsubscribe();
         };
-    }, [checkAuth, fetchUserData]);
+    }, [fetchUserData, user?.id]);
 
     const login = async (email: string, password: string) => {
         setLoading(true);

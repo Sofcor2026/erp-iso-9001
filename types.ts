@@ -1,4 +1,4 @@
-export type Permission = 
+export type Permission =
   // Platform
   'platform:access' |
   'platform:manage_tenants' |
@@ -23,7 +23,7 @@ export type Permission =
   // KPIs
   'kpi:manage' |
   'kpi:read' |
-  
+
   // Forms
   'form:create';
 
@@ -113,6 +113,7 @@ export interface Document {
   fechaEmision: string;
   fechaRevision: string;
   archivoUrl: string;
+  fileSize?: number; // en GB
   vinculos?: {
     kpiIds?: string[];
     formId?: string;
@@ -122,15 +123,15 @@ export interface Document {
 }
 
 export interface KPI {
-    id: string;
-    nombre: string;
-    unidad: string;
-    meta: number;
-    periodicidad: 'Diario' | 'Semanal' | 'Mensual' | 'Anual';
-    proceso: ProcessType;
-    subproceso?: string;
-    responsableId: string;
-    responsableNombre: string;
+  id: string;
+  nombre: string;
+  unidad: string;
+  meta: number;
+  periodicidad: 'Diario' | 'Semanal' | 'Mensual' | 'Anual';
+  proceso: ProcessType;
+  subproceso?: string;
+  responsableId: string;
+  responsableNombre: string;
 }
 
 export interface Contacto {
@@ -165,18 +166,18 @@ export interface OrdenCompra {
 export type TemplateType = 'COTIZACION' | 'ORDEN_COMPRA' | 'DOTACION';
 
 export interface Template {
-    id: string;
-    nombre: string;
-    tipo: TemplateType;
-    version: number;
-    lastUpdated: string;
-    fileUrl: string;
+  id: string;
+  nombre: string;
+  tipo: TemplateType;
+  version: number;
+  lastUpdated: string;
+  fileUrl: string;
 }
 
 export interface AuditLog {
-    id: number;
-    actor: string;
-    action: string;
-    resource: string;
-    timestamp: string;
+  id: number;
+  actor: string;
+  action: string;
+  resource: string;
+  timestamp: string;
 }

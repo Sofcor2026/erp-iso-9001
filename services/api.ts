@@ -156,15 +156,51 @@ export const api = {
     },
 
     addDocument: async (
-        newDocData: Omit<Document, 'id' | 'version' | 'estado' | 'fechaEmision' | 'fechaRevision' | 'archivoUrl' | 'responsableNombre'>,
+        newDocData: Omit<Document, 'id' | 'version' | 'estado' | 'fechaEmision' | 'fechaRevision' | 'archivoUrl' | 'responsableNombre'> & { file?: File },
         creator: User
     ): Promise<Document> => {
         try {
-            if (!creator.tenantId) {
-                throw new Error('User must belong to a tenant');
+            if (!creator.tenantId) throw new Error('User must belong to a tenant');
+
+            let publicUrl = '#';
+            let fileSizeGB = 0;
+
+            if (newDocData.file) {
+                // 1. Validar límite de almacenamiento
+                fileSizeGB = newDocData.file.size / (1024 * 1024 * 1024);
+                const { data: tenant } = await supabase
+                    .from('tenants')
+                    .select('storage_used, plan:plans(storage_limit)')
+                    .eq('id', creator.tenantId)
+                    .single();
+
+                const planData = Array.isArray(tenant?.plan) ? tenant.plan[0] : tenant?.plan;
+                const currentStorage = parseFloat(tenant?.storage_used || '0');
+                const limit = parseFloat(planData?.storage_limit || '0');
+
+                if (currentStorage + fileSizeGB > limit) {
+                    throw new Error('Límite de almacenamiento alcanzado. Contacte al administrador para ampliar su plan.');
+                }
+
+                // 2. Subir archivo a Storage
+                const fileExt = newDocData.file.name.split('.').pop();
+                const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+                const filePath = `${creator.tenantId}/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('documents')
+                    .upload(filePath, newDocData.file);
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl: url } } = supabase.storage
+                    .from('documents')
+                    .getPublicUrl(filePath);
+
+                publicUrl = url;
             }
 
-            // Buscar datos del responsable
+            // 3. Buscar datos del responsable
             const { data: responsable, error: respError } = await supabase
                 .from('users')
                 .select('nombre')
@@ -175,6 +211,7 @@ export const api = {
 
             const today = new Date().toISOString().split('T')[0];
 
+            // 4. Insertar en DB
             const { data, error } = await supabase
                 .from('documents')
                 .insert({
@@ -189,23 +226,26 @@ export const api = {
                     responsable_id: newDocData.responsableId,
                     fecha_emision: today,
                     fecha_revision: today,
-                    archivo_url: '#',
+                    archivo_url: publicUrl,
+                    file_size: fileSizeGB
                 })
                 .select()
                 .single();
 
             if (error) throw error;
 
-            // Crear entrada en historial
+            // 5. Actualizar contador de almacenamiento del tenant
+            await supabase.rpc('increment_tenant_storage', { t_id: creator.tenantId, amount: fileSizeGB });
+
+            // 6. Crear entrada en historial
             await supabase.from('document_history').insert({
                 document_id: data.id,
                 autor: responsable.nombre,
                 version: 1,
-                cambios: 'Documento Creado.'
+                cambios: 'Documento Creado y archivo subido.'
             });
 
-            // Log audit event
-            await api.logAuditEvent('UPLOAD_DOCUMENT', `doc:${data.id} (${data.codigo})`, creator);
+            await api.logAuditEvent('DOCUMENT_CREATE', `doc:${data.id} (${data.codigo})`, creator);
 
             return {
                 id: data.id,
@@ -220,21 +260,70 @@ export const api = {
                 responsableNombre: responsable.nombre,
                 fechaEmision: data.fecha_emision,
                 fechaRevision: data.fecha_revision,
-                archivoUrl: data.archivo_url || '#',
+                archivoUrl: data.archivo_url,
+                fileSize: data.file_size
             };
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error adding document:', error);
-            throw new Error('No se pudo crear el documento');
+            throw new Error(error.message || 'No se pudo crear el documento');
         }
     },
 
     updateDocument: async (
         docId: string,
-        updateData: Partial<Omit<Document, 'id'>>,
+        updateData: Partial<Omit<Document, 'id'>> & { file?: File },
         actor: User
     ): Promise<Document> => {
         try {
             const updates: any = {};
+            let oldFileSize = 0;
+            let newFileSize = 0;
+
+            // Obtener datos actuales para historial y gestión de archivos
+            const { data: currentDoc } = await supabase
+                .from('documents')
+                .select('version, archivo_url, file_size, tenant_id')
+                .eq('id', docId)
+                .single();
+
+            if (updateData.file) {
+                // Validar límite con el nuevo archivo
+                newFileSize = updateData.file.size / (1024 * 1024 * 1024);
+                oldFileSize = parseFloat(currentDoc?.file_size || '0');
+
+                const { data: tenant } = await supabase
+                    .from('tenants')
+                    .select('storage_used, plan:plans(storage_limit)')
+                    .eq('id', currentDoc.tenant_id)
+                    .single();
+
+                const planData = Array.isArray(tenant?.plan) ? tenant.plan[0] : tenant?.plan;
+                const currentStorage = parseFloat(tenant?.storage_used || '0');
+                const limit = parseFloat(planData?.storage_limit || '0');
+
+                if (currentStorage - oldFileSize + newFileSize > limit) {
+                    throw new Error('Esta actualización excedería el límite de almacenamiento de su plan.');
+                }
+
+                // Subir nuevo archivo
+                const fileExt = updateData.file.name.split('.').pop();
+                const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+                const filePath = `${currentDoc.tenant_id}/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('documents')
+                    .upload(filePath, updateData.file);
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('documents')
+                    .getPublicUrl(filePath);
+
+                updates.archivo_url = publicUrl;
+                updates.file_size = newFileSize;
+                updates.version = (currentDoc?.version || 1) + 1;
+            }
 
             if (updateData.codigo) updates.codigo = updateData.codigo;
             if (updateData.nombre) updates.nombre = updateData.nombre;
@@ -242,28 +331,33 @@ export const api = {
             if (updateData.subproceso) updates.subproceso = updateData.subproceso;
             if (updateData.tipo) updates.tipo = updateData.tipo;
             if (updateData.responsableId) updates.responsable_id = updateData.responsableId;
-            if (!updateData.fechaRevision) {
-                updates.fecha_revision = new Date().toISOString().split('T')[0];
-            }
+
+            updates.fecha_revision = new Date().toISOString().split('T')[0];
 
             const { data, error } = await supabase
                 .from('documents')
                 .update(updates)
                 .eq('id', docId)
                 .select(`
-          *,
-          responsable:users!responsable_id (nombre)
-        `)
+                    *,
+                    responsable:users!responsable_id (nombre)
+                `)
                 .single();
 
             if (error) throw error;
+
+            // Actualizar almacenamiento si cambió el archivo
+            if (updateData.file) {
+                await supabase.rpc('decrement_tenant_storage', { t_id: currentDoc.tenant_id, amount: oldFileSize });
+                await supabase.rpc('increment_tenant_storage', { t_id: currentDoc.tenant_id, amount: newFileSize });
+            }
 
             // Agregar al historial
             await supabase.from('document_history').insert({
                 document_id: docId,
                 autor: actor.nombre,
                 version: data.version,
-                cambios: 'Propiedades del documento actualizadas.'
+                cambios: updateData.file ? 'Nueva versión de archivo subida.' : 'Propiedades del documento actualizadas.'
             });
 
             return {
@@ -279,11 +373,48 @@ export const api = {
                 responsableNombre: data.responsable?.nombre || 'Unknown',
                 fechaEmision: data.fecha_emision,
                 fechaRevision: data.fecha_revision,
-                archivoUrl: data.archivo_url || '#',
+                archivoUrl: data.archivo_url,
+                fileSize: data.file_size
             };
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error updating document:', error);
-            throw new Error('No se pudo actualizar el documento');
+            throw new Error(error.message || 'No se pudo actualizar el documento');
+        }
+    },
+
+    deleteDocument: async (docId: string, actor: User): Promise<void> => {
+        try {
+            // 1. Obtener info para borrar archivo y decrementar storage
+            const { data: doc } = await supabase
+                .from('documents')
+                .select('archivo_url, file_size, tenant_id, codigo')
+                .eq('id', docId)
+                .single();
+
+            if (!doc) throw new Error('Documento no encontrado');
+
+            // 2. Borrar archivo del Storage si existe
+            if (doc.archivo_url && doc.archivo_url !== '#') {
+                const urlParts = doc.archivo_url.split('/');
+                const fileName = urlParts[urlParts.length - 1];
+                const filePath = `${doc.tenant_id}/${fileName}`;
+                await supabase.storage.from('documents').remove([filePath]);
+            }
+
+            // 3. Borrar de la DB
+            const { error } = await supabase.from('documents').delete().eq('id', docId);
+            if (error) throw error;
+
+            // 4. Decrementar almacenamiento
+            const size = parseFloat(doc.file_size || '0');
+            if (size > 0) {
+                await supabase.rpc('decrement_tenant_storage', { t_id: doc.tenant_id, amount: size });
+            }
+
+            await api.logAuditEvent('DOCUMENT_DELETE', `doc:${docId} (${doc.codigo})`, actor);
+        } catch (error) {
+            console.error('Error deleting document:', error);
+            throw error;
         }
     },
 
@@ -361,6 +492,117 @@ export const api = {
         } catch (error) {
             console.error('Error fetching users:', error);
             return [];
+        }
+    },
+
+    createUser: async (
+        userData: Omit<User, 'id' | 'role' | 'activo'> & { roleId: string; password?: string },
+        actor: User
+    ): Promise<User> => {
+        try {
+            // 1. Validar límites del plan si no es un SuperAdmin creando un usuario global
+            if (userData.tenantId) {
+                const { data: tenant, error: tError } = await supabase
+                    .from('tenants')
+                    .select('user_count, plan:plans(user_limit)')
+                    .eq('id', userData.tenantId)
+                    .single();
+
+                if (tError) throw tError;
+
+                const planData = Array.isArray(tenant.plan) ? tenant.plan[0] : tenant.plan;
+                if (tenant.user_count >= (planData?.user_limit || 0)) {
+                    throw new Error('Límite de usuarios alcanzado para este plan. Contacte al administrador para ampliar su plan.');
+                }
+            }
+
+            // 2. Crear el usuario en Auth (via Edge Function)
+            const { data: functionData, error: functionError } = await supabase.functions.invoke('create-admin-user', {
+                body: {
+                    email: userData.email,
+                    nombre: userData.nombre,
+                    password: userData.password
+                }
+            });
+
+            if (functionError) throw new Error(functionError.message);
+
+            const authUser = functionData.user;
+
+            // 2. Crear el registro en la tabla public.users
+            const { data: newUser, error: userError } = await supabase
+                .from('users')
+                .insert({
+                    id: authUser.id,
+                    email: userData.email,
+                    nombre: userData.nombre,
+                    role_id: userData.roleId,
+                    tenant_id: userData.tenantId,
+                    activo: true
+                })
+                .select(`
+                    *,
+                    role:roles (*)
+                `)
+                .single();
+
+            if (userError) throw userError;
+
+            // 3. Incrementar contador en tenant
+            if (userData.tenantId) {
+                await supabase.rpc('increment_tenant_user_count', { t_id: userData.tenantId });
+            }
+
+            await api.logAuditEvent('USER_CREATE', `user:${newUser.id} (${newUser.email}) - Tenant: ${userData.tenantId}`, actor);
+
+            const roleData = Array.isArray(newUser.role) ? newUser.role[0] : newUser.role;
+            return {
+                id: newUser.id,
+                email: newUser.email,
+                nombre: newUser.nombre,
+                role: {
+                    id: roleData.id,
+                    name: roleData.name,
+                    description: roleData.description,
+                    permissions: roleData.permissions,
+                    isDefault: roleData.is_default,
+                },
+                tenantId: newUser.tenant_id,
+                activo: newUser.activo,
+            };
+        } catch (error: any) {
+            console.error('Error creating user:', error);
+            throw new Error(error.message || 'No se pudo crear el usuario');
+        }
+    },
+
+    deleteUser: async (userId: string, actor: User): Promise<void> => {
+        try {
+            // Obtener tenant_id antes de borrar
+            const { data: userToDelete } = await supabase
+                .from('users')
+                .select('tenant_id')
+                .eq('id', userId)
+                .single();
+
+            // 1. Borrar en la tabla pública
+            const { error: tableError } = await supabase
+                .from('users')
+                .delete()
+                .eq('id', userId);
+
+            if (tableError) throw tableError;
+
+            // 2. Decrementar contador en tenant
+            if (userToDelete?.tenant_id) {
+                await supabase.rpc('decrement_tenant_user_count', { t_id: userToDelete.tenant_id });
+            }
+
+            // Nota: El borrado en Auth requiere Admin API (Edge Function), lo dejamos para despues o lo manejamos manual
+            await api.logAuditEvent('USER_DELETE', `user:${userId}`, actor);
+        } catch (error) {
+            console.error('Error deleting user:', error);
+            throw new Error('No se pudo eliminar el usuario');
         }
     },
 
@@ -531,6 +773,38 @@ export const api = {
         }
     },
 
+    getTenantById: async (id: string): Promise<Tenant | null> => {
+        try {
+            const { data, error } = await supabase
+                .from('tenants')
+                .select(`
+                    *,
+                    plan:plans (nombre, user_limit, storage_limit)
+                `)
+                .eq('id', id)
+                .single();
+
+            if (error) throw error;
+
+            return {
+                id: data.id,
+                nombre: data.nombre,
+                subdominio: data.subdominio,
+                planId: data.plan_id,
+                planNombre: (Array.isArray(data.plan) ? data.plan[0] : data.plan)?.nombre || 'Unknown',
+                estado: data.estado as 'Activo' | 'Suspendido' | 'Prueba',
+                fechaCreacion: data.fecha_creacion,
+                userCount: data.user_count,
+                storageUsed: parseFloat(data.storage_used),
+                userLimit: (Array.isArray(data.plan) ? data.plan[0] : data.plan)?.user_limit || 0,
+                storageLimit: (Array.isArray(data.plan) ? data.plan[0] : data.plan)?.storage_limit || 0,
+            };
+        } catch (error) {
+            console.error('Error fetching tenant by id:', error);
+            return null;
+        }
+    },
+
     isSubdomainTaken: async (subdomain: string): Promise<boolean> => {
         try {
             const { count, error } = await supabase
@@ -548,7 +822,7 @@ export const api = {
 
     createTenant: async (
         tenantData: Omit<Tenant, 'id' | 'fechaCreacion' | 'userCount' | 'storageUsed' | 'estado' | 'userLimit' | 'storageLimit' | 'planNombre'>,
-        adminData: Omit<User, 'id' | 'role' | 'tenantId' | 'activo'>,
+        adminData: Omit<User, 'id' | 'role' | 'tenantId' | 'activo'> & { password?: string },
         actor: User
     ): Promise<Tenant> => {
         try {
@@ -560,7 +834,7 @@ export const api = {
                     subdominio: tenantData.subdominio,
                     plan_id: tenantData.planId,
                     estado: 'Activo',
-                    user_count: 0,
+                    user_count: 1, // El administrador que creamos a continuación cuenta como el primero
                     storage_used: 0,
                 })
                 .select(`
@@ -576,7 +850,8 @@ export const api = {
             const { data: functionData, error: functionError } = await supabase.functions.invoke('create-admin-user', {
                 body: {
                     email: adminData.email,
-                    nombre: adminData.nombre
+                    nombre: adminData.nombre,
+                    password: adminData.password
                 }
             });
 
@@ -1063,10 +1338,27 @@ export const api = {
     },
 
     uploadTemplate: async (
-        templateData: Omit<Template, 'id' | 'fileUrl' | 'lastUpdated' | 'version'>,
+        templateData: Omit<Template, 'id' | 'fileUrl' | 'lastUpdated' | 'version'> & { file: File },
         actor: User
     ): Promise<Template> => {
         try {
+            // 1. Subir archivo a Storage
+            const fileExt = templateData.file.name.split('.').pop();
+            const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+            const filePath = `global/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('templates')
+                .upload(filePath, templateData.file);
+
+            if (uploadError) throw uploadError;
+
+            // Obtener URL pública
+            const { data: { publicUrl } } = supabase.storage
+                .from('templates')
+                .getPublicUrl(filePath);
+
+            // 2. Insertar en tabla
             const { data, error } = await supabase
                 .from('templates')
                 .insert({
@@ -1074,7 +1366,7 @@ export const api = {
                     tipo: templateData.tipo,
                     version: 1,
                     last_updated: new Date().toISOString().split('T')[0],
-                    file_url: '#', // Placeholder, se actualizará con Storage
+                    file_url: publicUrl,
                 })
                 .select()
                 .single();
@@ -1089,7 +1381,7 @@ export const api = {
                 tipo: data.tipo as TemplateType,
                 version: data.version,
                 lastUpdated: data.last_updated,
-                fileUrl: data.file_url || '#',
+                fileUrl: data.file_url,
             };
         } catch (error) {
             console.error('Error uploading template:', error);
@@ -1099,7 +1391,7 @@ export const api = {
 
     updateTemplate: async (
         templateId: string,
-        templateData: Partial<Omit<Template, 'id' | 'fileUrl' | 'lastUpdated' | 'version'>> & { newFile?: boolean },
+        templateData: Partial<Omit<Template, 'id' | 'fileUrl' | 'lastUpdated' | 'version'>> & { file?: File },
         actor: User
     ): Promise<Template> => {
         try {
@@ -1109,8 +1401,26 @@ export const api = {
 
             if (templateData.nombre) updates.nombre = templateData.nombre;
             if (templateData.tipo) updates.tipo = templateData.tipo;
-            if (templateData.newFile) {
-                // Incrementar versión si hay nuevo archivo
+
+            if (templateData.file) {
+                // 1. Subir nuevo archivo
+                const fileExt = templateData.file.name.split('.').pop();
+                const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+                const filePath = `global/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('templates')
+                    .upload(filePath, templateData.file);
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('templates')
+                    .getPublicUrl(filePath);
+
+                updates.file_url = publicUrl;
+
+                // 2. Incrementar versión
                 const { data: current } = await supabase
                     .from('templates')
                     .select('version')
@@ -1139,7 +1449,7 @@ export const api = {
                 tipo: data.tipo as TemplateType,
                 version: data.version,
                 lastUpdated: data.last_updated,
-                fileUrl: data.file_url || '#',
+                fileUrl: data.file_url,
             };
         } catch (error) {
             console.error('Error updating template:', error);

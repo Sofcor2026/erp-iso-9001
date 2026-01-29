@@ -1,14 +1,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Building, FileText, BarChart2, Shield, Settings, Package, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Building, FileText, BarChart2, Shield, Settings, Package, ShieldCheck, Users } from 'lucide-react';
 
 interface SidebarProps {
-  isOpen: boolean;
+    isOpen: boolean;
 }
 
 const navItems = [
     { to: "/platform/admin", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/platform/tenants", icon: Building, label: "Tenants" },
+    { to: "/platform/users", icon: Users, label: "Usuarios" },
     { to: "/platform/plans", icon: Package, label: "Planes" },
     { to: "/platform/roles", icon: ShieldCheck, label: "Roles y Permisos" },
     { to: "/platform/templates", icon: FileText, label: "Plantillas" },
@@ -24,7 +25,7 @@ const PlatformSidebar: React.FC<SidebarProps> = ({ isOpen }) => {
                 <nav>
                     <ul>
                         {navItems.map((item) => (
-                             <li key={item.label}>
+                            <li key={item.label}>
                                 <NavLink
                                     to={item.to}
                                     end={item.to === "/platform/admin"}

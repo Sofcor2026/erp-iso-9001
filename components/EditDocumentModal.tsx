@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
+import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 import { Document, DocumentStatus, DocumentType, ProcessType, User } from '../types';
-import { X, Save, Loader2, History } from 'lucide-react';
+import { X, Save, Loader2, History, UploadCloud, Trash2 } from 'lucide-react';
 
 interface EditDocumentModalProps {
     isOpen: boolean;
@@ -14,15 +15,19 @@ const APOYO_SUBPROCESOS_KEYS = ['Gestión Humana', 'Compras', 'Infraestructura']
 
 
 const EditDocumentModal: React.FC<EditDocumentModalProps> = ({ isOpen, onClose, document }) => {
+    const { user: actor } = useAuth();
     const { updateDocument } = useData();
     const [formData, setFormData] = useState<Partial<Document>>({});
     const [users, setUsers] = useState<User[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [newFile, setNewFile] = useState<File | null>(null);
     const [error, setError] = useState('');
 
     useEffect(() => {
         if (document) {
             setFormData({ ...document });
+            setNewFile(null);
         }
         api.getUsers().then(setUsers);
     }, [document, isOpen]);
@@ -46,17 +51,35 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({ isOpen, onClose, 
         try {
             const { id, responsableNombre, historial, ...updateData } = formData;
             if (!id) throw new Error("Document ID is missing");
-            // Remove properties that are not part of the update payload, like linked objects
-            const updatePayload = { ...updateData };
+
+            const updatePayload = {
+                ...updateData,
+                file: newFile || undefined
+            };
             delete (updatePayload as any).vinculos;
 
             await updateDocument(id, updatePayload);
             onClose();
-        } catch (err) {
+        } catch (err: any) {
             console.error("Failed to save document", err);
-            setError('Error al guardar el documento. Por favor, intente de nuevo.');
+            setError(err.message || 'Error al guardar el documento. Por favor, intente de nuevo.');
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm('¿Está seguro de eliminar este documento permanentemente? Se borrará el archivo y el historial.')) return;
+
+        setIsDeleting(true);
+        try {
+            await api.deleteDocument(document.id, actor!);
+            window.location.reload();
+        } catch (err) {
+            console.error("Failed to delete document", err);
+            setError('Error al eliminar el documento.');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -131,6 +154,24 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({ isOpen, onClose, 
                                     {users.filter(u => u.role?.name !== 'SUPERADMIN').map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
                                 </select>
                             </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Actualizar Archivo (Opcional)</label>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
+                                        <label className="cursor-pointer">
+                                            <UploadCloud className="mx-auto h-8 w-8 text-gray-400" />
+                                            <span className="mt-2 block text-xs font-medium text-gray-600">
+                                                {newFile ? newFile.name : 'Click para subir nueva versión'}
+                                            </span>
+                                            <input type="file" className="hidden" onChange={(e) => setNewFile(e.target.files?.[0] || null)} />
+                                        </label>
+                                    </div>
+                                    {newFile && (
+                                        <button type="button" onClick={() => setNewFile(null)} className="text-red-500 text-xs font-bold underline">Remover</button>
+                                    )}
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-1">Si sube un archivo nuevo, la versión se incrementará automáticamente.</p>
+                            </div>
                         </div>
 
                         {/* Change History Section */}
@@ -159,14 +200,25 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({ isOpen, onClose, 
 
                         {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
                     </div>
-                    <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary">
-                            Cancelar
+                    <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-between items-center">
+                        <button
+                            type="button"
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className="text-red-600 hover:text-red-700 text-sm font-bold flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                            {isDeleting ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                            Eliminar
                         </button>
-                        <button type="submit" disabled={isSaving} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary border border-transparent rounded-md shadow-sm hover:bg-brand-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary disabled:bg-gray-400 flex items-center">
-                            {isSaving ? <Loader2 className="animate-spin mr-2" size={16} /> : <Save size={16} className="mr-2" />}
-                            {isSaving ? 'Guardando...' : 'Guardar Cambios'}
-                        </button>
+                        <div className="flex space-x-3">
+                            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50">
+                                Cancelar
+                            </button>
+                            <button type="submit" disabled={isSaving} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary border border-transparent rounded-md shadow-sm hover:bg-brand-secondary disabled:bg-gray-400 flex items-center">
+                                {isSaving ? <Loader2 className="animate-spin mr-2" size={16} /> : <Save size={16} className="mr-2" />}
+                                {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>

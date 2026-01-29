@@ -9,6 +9,7 @@ import TemplateListPage from './TemplateListPage';
 import PlatformAuditPage from './PlatformAuditPage';
 import PlatformSettingsPage from './PlatformSettingsPage';
 import RoleManagementPage from './RoleManagementPage';
+import PlatformUserPage from './PlatformUserPage';
 
 const PlatformAdminDashboard: React.FC = () => {
     const [isSidebarOpen, setSidebarOpen] = useState(true);
@@ -22,6 +23,7 @@ const PlatformAdminDashboard: React.FC = () => {
                     <Routes>
                         <Route path="/platform/admin" element={<PlatformHomePage />} />
                         <Route path="/platform/tenants" element={<TenantListPage />} />
+                        <Route path="/platform/users" element={<PlatformUserPage />} />
                         <Route path="/platform/plans" element={<PlanListPage />} />
                         <Route path="/platform/roles" element={<RoleManagementPage />} />
                         <Route path="/platform/templates" element={<TemplateListPage />} />

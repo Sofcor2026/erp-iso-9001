@@ -5,7 +5,7 @@ import { X, UploadCloud } from 'lucide-react';
 interface UploadDocumentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpload: (data: { nombre: string; codigo: string; tipo: DocumentType; }) => void;
+  onUpload: (data: { nombre: string; codigo: string; tipo: DocumentType; file: File; }) => void;
   defaultType?: DocumentType;
 }
 
@@ -14,11 +14,12 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
   const [codigo, setCodigo] = useState('');
   const [tipo, setTipo] = useState<DocumentType>(DocumentType.PROCEDIMIENTO);
   const [fileName, setFileName] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if(defaultType) {
-        setTipo(defaultType);
+    if (defaultType) {
+      setTipo(defaultType);
     }
   }, [defaultType, isOpen]);
 
@@ -27,6 +28,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
     setCodigo('');
     setTipo(defaultType || DocumentType.PROCEDIMIENTO);
     setFileName('');
+    setFile(null);
     setError('');
   }
 
@@ -37,22 +39,25 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre || !codigo || !fileName) {
-        setError("Por favor, complete todos los campos y seleccione un archivo.");
-        return;
+    if (!nombre || !codigo || !file) {
+      setError("Por favor, complete todos los campos y seleccione un archivo.");
+      return;
     }
     setError('');
     onUpload({
-        nombre,
-        codigo,
-        tipo,
+      nombre,
+      codigo,
+      tipo,
+      file,
     });
     handleClose();
   };
-  
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-        setFileName(e.target.files[0].name);
+      const selectedFile = e.target.files[0];
+      setFileName(selectedFile.name);
+      setFile(selectedFile);
     }
   }
 
@@ -93,22 +98,22 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
               </select>
             </div>
             <div>
-                <label className="block text-sm font-medium text-gray-700">Archivo</label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                    <div className="space-y-1 text-center">
-                        <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
-                        <div className="flex text-sm text-gray-600">
-                            <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-brand-primary hover:text-brand-secondary focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-brand-primary">
-                                <span>Sube un archivo</span>
-                                <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} />
-                            </label>
-                            <p className="pl-1">o arrástralo y suéltalo</p>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                           {fileName ? <span className="font-medium text-gray-700">Seleccionado: {fileName}</span> : 'PNG, JPG, PDF de hasta 10MB'}
-                        </p>
-                    </div>
+              <label className="block text-sm font-medium text-gray-700">Archivo</label>
+              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                <div className="space-y-1 text-center">
+                  <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+                  <div className="flex text-sm text-gray-600">
+                    <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-brand-primary hover:text-brand-secondary focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-brand-primary">
+                      <span>Sube un archivo</span>
+                      <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} />
+                    </label>
+                    <p className="pl-1">o arrástralo y suéltalo</p>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {fileName ? <span className="font-medium text-gray-700">Seleccionado: {fileName}</span> : 'PNG, JPG, PDF de hasta 10MB'}
+                  </p>
                 </div>
+              </div>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
           </div>
