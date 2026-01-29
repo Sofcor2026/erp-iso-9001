@@ -82,11 +82,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         let isMounted = true;
 
+        // --- SAFETY TIMEOUT ---
+        // Si en 4 segundos no hay respuesta clara, desbloqueamos la pantalla
+        const timeoutId = setTimeout(() => {
+            if (isMounted && loading) {
+                console.warn('Auth check timed out. Forcing load completion.');
+                setLoading(false);
+            }
+        }, 4000);
+
         async function initAuth() {
             try {
-                // Solo poner loading si no tenemos usuario (evitar parpadeo en cambios de token)
                 setLoading(true);
-
                 const { data: { session } } = await supabase.auth.getSession();
 
                 if (session?.user && isMounted) {
@@ -105,9 +112,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     }
                 }
             } catch (error) {
-                console.error('Initial session check failed:', error);
+                console.error('Auth initialization error:', error);
             } finally {
-                if (isMounted) setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                    clearTimeout(timeoutId);
+                }
             }
         }
 
@@ -122,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setOriginalUser(null);
                     localStorage.removeItem('erp-original-user');
                     setLoading(false);
+                    clearTimeout(timeoutId);
                     return;
                 }
 
@@ -132,15 +143,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     }
                 }
 
-                if (isMounted) setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                    clearTimeout(timeoutId);
+                }
             }
         );
 
         return () => {
             isMounted = false;
             subscription.unsubscribe();
+            clearTimeout(timeoutId);
         };
-    }, [fetchUserData]); // user?.id removed from dependencies
+    }, [fetchUserData]);
 
     const login = async (email: string, password: string) => {
         setLoading(true);
