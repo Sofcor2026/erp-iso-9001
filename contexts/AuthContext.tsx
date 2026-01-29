@@ -88,7 +88,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setLoading(true);
 
                 const { data: { session } } = await supabase.auth.getSession();
-                console.log('Initial session check:', session?.user?.email || 'No session');
 
                 if (session?.user && isMounted) {
                     const userData = await fetchUserData(session.user.id);
@@ -116,23 +115,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
-                console.log('Auth event triggered:', event, session?.user?.email);
-
                 if (!isMounted) return;
 
-                if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-                    // Fetch data to ensure it's fresh and includes roles/permissions
-                    const userData = await fetchUserData(session.user.id);
-                    if (userData && isMounted) {
-                        setUser(userData);
-                    }
-                    setLoading(false);
-                } else if (event === 'SIGNED_OUT') {
+                if (event === 'SIGNED_OUT') {
                     setUser(null);
                     setOriginalUser(null);
                     localStorage.removeItem('erp-original-user');
                     setLoading(false);
+                    return;
                 }
+
+                if (session?.user) {
+                    const userData = await fetchUserData(session.user.id);
+                    if (userData && isMounted) {
+                        setUser(userData);
+                    }
+                }
+
+                if (isMounted) setLoading(false);
             }
         );
 

@@ -19,13 +19,13 @@ const App: React.FC = () => {
 };
 
 const AppRouter: React.FC = () => {
-    const { hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
 
-    if (hasPermission('platform:access')) {
-        return <PlatformAdminDashboard />;
-    } 
-    // All other roles go to the tenant dashboard
-    return <Dashboard />;
+  if (hasPermission('platform:access')) {
+    return <PlatformAdminDashboard />;
+  }
+  // All other roles go to the tenant dashboard
+  return <Dashboard />;
 }
 
 
@@ -38,22 +38,18 @@ const Router: React.FC = () => {
       case 'ADMIN': return '/tenant/admin';
       case 'EDITOR': return '/tenant/editor';
       case 'LECTOR': return '/tenant/viewer';
-      default: 
-        if(hasPermission('platform:access')) return '/platform/admin';
+      default:
+        if (hasPermission('platform:access')) return '/platform/admin';
         return '/';
     }
   };
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen bg-gray-100"><div className="text-xl font-semibold">Cargando...</div></div>;
-  }
 
   return (
     <HashRouter>
       {isImpersonating && <ImpersonationBanner />}
       <Routes>
         <Route path="/login" element={!user ? <LoginPage /> : <Navigate to={getHomeRoute(user.role.name)} replace />} />
-        <Route path="/*" element={user ? <AppRouter /> : <Navigate to="/login" replace />} />
+        <Route path="/*" element={user ? <AppRouter /> : (loading ? <div className="flex items-center justify-center h-screen bg-white text-gray-400">Verificando sesión...</div> : <Navigate to="/login" replace />)} />
       </Routes>
     </HashRouter>
   );
