@@ -114,12 +114,42 @@ export interface Document {
   fechaRevision: string;
   archivoUrl: string;
   fileSize?: number; // en GB
+  contentType?: 'file' | 'spreadsheet';
   vinculos?: {
     kpiIds?: string[];
     formId?: string;
     formType?: 'Cotizacion' | 'OrdenCompra' | 'Dotacion';
   };
   historial?: DocumentoHistorial[];
+}
+
+export interface EquipmentAssignment {
+  id: string;
+  tenantId: string;
+  employeeId: string;
+  employeeNombre?: string;
+  itemNombre: string;
+  cantidad: number;
+  talla?: string;
+  estado: 'Pendiente' | 'Entregado' | 'Devuelto';
+  fechaEntrega: string;
+  recibidoPor?: string;
+  notas?: string;
+}
+
+export interface Quote {
+  id: string;
+  tenantId: string;
+  numero: string;
+  clienteId: string;
+  clienteNombre?: string;
+  monto: number;
+  estado: 'Pendiente' | 'Enviada' | 'Aprobada' | 'Rechazada';
+  vendedorId: string;
+  vendedorNombre?: string;
+  items: any[];
+  fechaEmision: string;
+  fechaVencimiento?: string;
 }
 
 export interface KPI {

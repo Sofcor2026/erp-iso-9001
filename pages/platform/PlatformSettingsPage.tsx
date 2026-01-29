@@ -21,12 +21,16 @@ const PlatformSettingsPage: React.FC = () => {
         const fetchSettings = async () => {
             try {
                 const settings = await api.getPlatformSettings();
-                setSmtpHost(settings.smtp.host);
-                setSmtpPort(settings.smtp.port);
-                setSmtpUser(settings.smtp.user);
-                setSmtpPass(settings.smtp.pass); // This will be '********'
-                setStripePk(settings.stripe.publicKey);
-                setStripeSk(settings.stripe.secretKey); // This will be '********'
+                if (settings.smtp) {
+                    setSmtpHost(settings.smtp.host || '');
+                    setSmtpPort(settings.smtp.port || '');
+                    setSmtpUser(settings.smtp.user || '');
+                    setSmtpPass(settings.smtp.pass || '');
+                }
+                if (settings.stripe) {
+                    setStripePk(settings.stripe.publicKey || '');
+                    setStripeSk(settings.stripe.secretKey || '');
+                }
             } catch (error) {
                 console.error("Failed to load settings", error);
                 alert("Could not load platform settings.");
@@ -37,7 +41,7 @@ const PlatformSettingsPage: React.FC = () => {
 
         fetchSettings();
     }, []);
-    
+
     const handleSmtpSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSavingSmtp(true);
@@ -68,7 +72,7 @@ const PlatformSettingsPage: React.FC = () => {
                 secretKey: stripeSk,
             });
             alert("Configuración de Pagos guardada exitosamente.");
-             // Reset secret key field after save for security
+            // Reset secret key field after save for security
             setStripeSk('********');
         } catch (error) {
             console.error("Failed to save Stripe settings", error);
@@ -106,15 +110,15 @@ const PlatformSettingsPage: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                           <label htmlFor="smtp-port" className="block text-sm font-medium text-gray-700">Puerto</label>
-                           <input id="smtp-port" type="text" value={smtpPort} onChange={e => setSmtpPort(e.target.value)} className="mt-1 block w-full input-style" />
+                            <label htmlFor="smtp-port" className="block text-sm font-medium text-gray-700">Puerto</label>
+                            <input id="smtp-port" type="text" value={smtpPort} onChange={e => setSmtpPort(e.target.value)} className="mt-1 block w-full input-style" />
                         </div>
-                         <div>
-                           <label htmlFor="smtp-user" className="block text-sm font-medium text-gray-700">Usuario</label>
-                           <input id="smtp-user" type="text" value={smtpUser} onChange={e => setSmtpUser(e.target.value)} className="mt-1 block w-full input-style" />
+                        <div>
+                            <label htmlFor="smtp-user" className="block text-sm font-medium text-gray-700">Usuario</label>
+                            <input id="smtp-user" type="text" value={smtpUser} onChange={e => setSmtpUser(e.target.value)} className="mt-1 block w-full input-style" />
                         </div>
                     </div>
-                     <div>
+                    <div>
                         <label htmlFor="smtp-pass" className="block text-sm font-medium text-gray-700">Contraseña</label>
                         <input id="smtp-pass" type="password" value={smtpPass} onChange={e => setSmtpPass(e.target.value)} placeholder="Dejar en blanco para no cambiar" className="mt-1 block w-full input-style" />
                     </div>
@@ -127,22 +131,22 @@ const PlatformSettingsPage: React.FC = () => {
                 </form>
             </div>
 
-             {/* Payment Gateway Settings */}
+            {/* Payment Gateway Settings */}
             <div className="bg-white p-6 rounded-lg shadow-sm border">
                 <h3 className="text-lg font-semibold text-gray-800 flex items-center mb-4">
                     <CreditCard size={20} className="mr-3 text-brand-primary" />
                     Pasarela de Pagos (Stripe)
                 </h3>
                 <form className="space-y-4" onSubmit={handleStripeSubmit}>
-                     <div>
+                    <div>
                         <label htmlFor="stripe-pk" className="block text-sm font-medium text-gray-700">Clave Pública (Publishable Key)</label>
                         <input id="stripe-pk" type="text" value={stripePk} onChange={e => setStripePk(e.target.value)} placeholder="pk_test_..." className="mt-1 block w-full input-style" />
                     </div>
-                     <div>
+                    <div>
                         <label htmlFor="stripe-sk" className="block text-sm font-medium text-gray-700">Clave Secreta (Secret Key)</label>
                         <input id="stripe-sk" type="password" value={stripeSk} onChange={e => setStripeSk(e.target.value)} placeholder="Dejar en blanco para no cambiar" className="mt-1 block w-full input-style" />
                     </div>
-                     <div className="flex justify-end">
+                    <div className="flex justify-end">
                         <button type="submit" disabled={isSavingStripe} className="px-4 py-2 border rounded-md text-sm font-medium text-white bg-brand-primary hover:bg-brand-secondary disabled:bg-gray-400 flex items-center">
                             {isSavingStripe && <Loader2 size={16} className="animate-spin mr-2" />}
                             {isSavingStripe ? 'Guardando...' : 'Guardar Configuración de Pagos'}
@@ -150,7 +154,7 @@ const PlatformSettingsPage: React.FC = () => {
                     </div>
                 </form>
             </div>
-             <style>{`.input-style { border-radius: 0.375rem; border: 1px solid #D1D5DB; padding: 0.5rem 0.75rem; } .input-style:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }`}</style>
+            <style>{`.input-style { border-radius: 0.375rem; border: 1px solid #D1D5DB; padding: 0.5rem 0.75rem; } .input-style:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }`}</style>
         </div>
     );
 };

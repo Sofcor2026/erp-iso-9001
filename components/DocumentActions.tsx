@@ -6,9 +6,10 @@ import { MoreVertical, CheckCircle, Send, Eye, Download, Edit, Archive, History,
 interface DocumentActionsProps {
     doc: Document;
     onStatusChange: (docId: string, status: DocumentStatus) => Promise<void>;
+    onView?: (doc: Document) => void;
 }
 
-const DocumentActions: React.FC<DocumentActionsProps> = ({ doc, onStatusChange }) => {
+const DocumentActions: React.FC<DocumentActionsProps> = ({ doc, onStatusChange, onView }) => {
     const { user, hasPermission } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -53,14 +54,14 @@ const DocumentActions: React.FC<DocumentActionsProps> = ({ doc, onStatusChange }
                     </button>
                 )}
                 {canPublish && doc.estado === DocumentStatus.VIGENTE && (
-                     <button onClick={() => handleGenericClick(() => onStatusChange(doc.id, DocumentStatus.OBSOLETO))} className="action-item group text-red-600">
+                    <button onClick={() => handleGenericClick(() => onStatusChange(doc.id, DocumentStatus.OBSOLETO))} className="action-item group text-red-600">
                         <Archive size={16} className="mr-3" /> Declarar Obsoleto
                     </button>
                 )}
 
                 {/* Submit-level actions */}
                 {canSubmit && doc.estado === DocumentStatus.BORRADOR && (
-                     <button onClick={() => handleGenericClick(() => onStatusChange(doc.id, DocumentStatus.REVISION))} className="action-item group text-brand-primary">
+                    <button onClick={() => handleGenericClick(() => onStatusChange(doc.id, DocumentStatus.REVISION))} className="action-item group text-brand-primary">
                         <Send size={16} className="mr-3" /> Solicitar Revisión
                     </button>
                 )}
@@ -71,10 +72,10 @@ const DocumentActions: React.FC<DocumentActionsProps> = ({ doc, onStatusChange }
                         <History size={16} className="mr-3" /> Crear Nueva Versión
                     </button>
                 )}
-                
+
                 {/* Download Actions */}
-                 {canDownload && doc.estado === DocumentStatus.VIGENTE && (
-                     <button className="action-item group">
+                {canDownload && doc.estado === DocumentStatus.VIGENTE && (
+                    <button className="action-item group">
                         <Download size={16} className="mr-3" /> Descargar
                     </button>
                 )}
@@ -97,10 +98,13 @@ const DocumentActions: React.FC<DocumentActionsProps> = ({ doc, onStatusChange }
             {isOpen && (
                 <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
                     <div className="py-1" role="menu" aria-orientation="vertical">
-                         <button className="action-item group">
-                            <Eye size={16} className="mr-3" /> Ver Detalles
+                        <button
+                            onClick={() => handleGenericClick(() => onView ? onView(doc) : window.open(doc.archivoUrl, '_blank'))}
+                            className="action-item group"
+                        >
+                            <Eye size={16} className="mr-3" /> {doc.contentType === 'spreadsheet' ? 'Abrir Editor' : 'Ver Archivo'}
                         </button>
-                         <div className="my-1 border-t border-gray-100"></div>
+                        <div className="my-1 border-t border-gray-100"></div>
                         {renderActions()}
                     </div>
                 </div>

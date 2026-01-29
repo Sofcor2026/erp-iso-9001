@@ -5,7 +5,7 @@ import { X, UploadCloud } from 'lucide-react';
 interface UploadDocumentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpload: (data: { nombre: string; codigo: string; tipo: DocumentType; file: File; }) => void;
+  onUpload: (data: { nombre: string; codigo: string; tipo: DocumentType; file?: File; contentType: 'file' | 'spreadsheet'; }) => void;
   defaultType?: DocumentType;
 }
 
@@ -13,6 +13,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
   const [nombre, setNombre] = useState('');
   const [codigo, setCodigo] = useState('');
   const [tipo, setTipo] = useState<DocumentType>(DocumentType.PROCEDIMIENTO);
+  const [contentType, setContentType] = useState<'file' | 'spreadsheet'>('file');
   const [fileName, setFileName] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState('');
@@ -27,6 +28,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
     setNombre('');
     setCodigo('');
     setTipo(defaultType || DocumentType.PROCEDIMIENTO);
+    setContentType('file');
     setFileName('');
     setFile(null);
     setError('');
@@ -39,7 +41,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre || !codigo || !file) {
+    if (!nombre || !codigo || (contentType === 'file' && !file)) {
       setError("Por favor, complete todos los campos y seleccione un archivo.");
       return;
     }
@@ -48,7 +50,8 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
       nombre,
       codigo,
       tipo,
-      file,
+      file: file || undefined,
+      contentType
     });
     handleClose();
   };
@@ -74,13 +77,30 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
           .animate-fade-in-scale { animation: fade-in-scale 0.2s forwards ease-out; }
         `}</style>
         <div className="p-6 border-b flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800">Subir Nuevo Documento</h2>
+          <h2 className="text-xl font-semibold text-gray-800">Nuevo Documento</h2>
           <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
             <X size={24} />
           </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
+            <div className="flex p-1 bg-gray-100 rounded-lg mb-2">
+              <button
+                type="button"
+                onClick={() => setContentType('file')}
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${contentType === 'file' ? 'bg-white shadow-sm text-brand-primary' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Archivo (PDF/IMG)
+              </button>
+              <button
+                type="button"
+                onClick={() => setContentType('spreadsheet')}
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${contentType === 'spreadsheet' ? 'bg-white shadow-sm text-brand-primary' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Base de Datos (Editable)
+              </button>
+            </div>
+
             <div>
               <label htmlFor="doc-name" className="block text-sm font-medium text-gray-700">Nombre del Documento</label>
               <input type="text" id="doc-name" value={nombre} onChange={e => setNombre(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-primary focus:border-brand-primary sm:text-sm" />
@@ -97,24 +117,37 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Archivo</label>
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                <div className="space-y-1 text-center">
-                  <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
-                  <div className="flex text-sm text-gray-600">
-                    <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-brand-primary hover:text-brand-secondary focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-brand-primary">
-                      <span>Sube un archivo</span>
-                      <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} />
-                    </label>
-                    <p className="pl-1">o arrástralo y suéltalo</p>
+            {contentType === 'file' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Archivo</label>
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                  <div className="space-y-1 text-center">
+                    <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+                    <div className="flex text-sm text-gray-600">
+                      <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-brand-primary hover:text-brand-secondary focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-brand-primary">
+                        <span>Sube un archivo</span>
+                        <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} />
+                      </label>
+                      <p className="pl-1">o arrástralo y suéltalo</p>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {fileName ? <span className="font-medium text-gray-700">Seleccionado: {fileName}</span> : 'PNG, JPG, PDF de hasta 10MB'}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    {fileName ? <span className="font-medium text-gray-700">Seleccionado: {fileName}</span> : 'PNG, JPG, PDF de hasta 10MB'}
-                  </p>
                 </div>
               </div>
-            </div>
+            )}
+            {contentType === 'spreadsheet' && (
+              <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700 flex gap-3">
+                <div className="bg-blue-100 p-2 rounded-lg h-fit">
+                  <UploadCloud size={16} />
+                </div>
+                <div>
+                  <p className="font-bold">Modo Base de Datos Activado</p>
+                  <p>No requiere archivo. Se creará una tabla vacía que podrás editar directamente en la plataforma.</p>
+                </div>
+              </div>
+            )}
             {error && <p className="text-sm text-red-600">{error}</p>}
           </div>
           <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3">

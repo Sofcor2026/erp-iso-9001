@@ -7,6 +7,8 @@ import MyTasksPage from './tenant/MyTasksPage';
 import TenantSettingsPage from './tenant/TenantSettingsPage';
 import TenantAuditPage from './tenant/TenantAuditPage';
 import TenantUserPage from './tenant/TenantUserPage';
+import EquipmentPage from './tenant/EquipmentPage';
+import QuotesPage from './tenant/QuotesPage';
 import { ProcessType, DocumentType } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import TenantSidebar from '../components/tenant/TenantSidebar';
@@ -78,6 +80,8 @@ const Dashboard: React.FC = () => {
               <Route path="/tenant/settings" element={<TenantSettingsPage />} />
               <Route path="/tenant/audit" element={<TenantAuditPage />} />
               <Route path="/tenant/users" element={<TenantUserPage />} />
+              <Route path="/tenant/equipment" element={<EquipmentPage />} />
+              <Route path="/tenant/quotes" element={<QuotesPage />} />
               <Route path="/*" element={<TenantHomeRedirect />} />
             </Routes>
           </div>

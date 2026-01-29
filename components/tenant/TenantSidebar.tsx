@@ -303,7 +303,15 @@ const TenantSidebar: React.FC<TenantSidebarProps> = ({ isOpen, setIsOpen, active
                 </div>
             </div>
 
-            <div className="mt-auto pt-4 border-t border-gray-200">
+            <div className="mt-auto pt-4 border-t border-gray-200 space-y-4">
+                <div className="px-3">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Comercial y Humana</h3>
+                    <ul className="space-y-1">
+                        <NavItem onClick={handleLinkClick} to="/tenant/quotes" label="Cotizaciones" level={0} icon={ShoppingCart} />
+                        <NavItem onClick={handleLinkClick} to="/tenant/equipment" label="Dotaciones" level={0} icon={HardHat} />
+                    </ul>
+                </div>
+
                 <ul className="space-y-1">
                     {hasPermission('form:create') && (
                         <Collapsible label="Formularios" nodeKey="forms" level={0} icon={FilePlus} expandedKeys={expandedKeys} toggleNode={toggleNode}>

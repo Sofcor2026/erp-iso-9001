@@ -1,7 +1,7 @@
 import {
     User, Role, Document, KPI, DocumentStatus, ProcessType, DocumentType,
     Contacto, OrdenCompra, Tenant, Plan, Template, TemplateType, AuditLog,
-    DocumentoHistorial, Permission
+    DocumentoHistorial, Permission, EquipmentAssignment, Quote
 } from '../types';
 import { supabase } from '../src/lib/supabase';
 
@@ -74,6 +74,7 @@ export const api = {
                 fechaEmision: doc.fecha_emision,
                 fechaRevision: doc.fecha_revision,
                 archivoUrl: doc.archivo_url || '#',
+                contentType: (doc.content_type as 'file' | 'spreadsheet') || 'file',
                 vinculos: doc.form_id ? {
                     formId: doc.form_id,
                     formType: doc.form_type as 'Cotizacion' | 'OrdenCompra' | 'Dotacion'
@@ -165,7 +166,7 @@ export const api = {
             let publicUrl = '#';
             let fileSizeGB = 0;
 
-            if (newDocData.file) {
+            if (newDocData.file && newDocData.contentType !== 'spreadsheet') {
                 // 1. Validar límite de almacenamiento
                 fileSizeGB = newDocData.file.size / (1024 * 1024 * 1024);
                 const { data: tenant } = await supabase
@@ -227,7 +228,8 @@ export const api = {
                     fecha_emision: today,
                     fecha_revision: today,
                     archivo_url: publicUrl,
-                    file_size: fileSizeGB
+                    file_size: fileSizeGB,
+                    content_type: newDocData.contentType || 'file'
                 })
                 .select()
                 .single();
@@ -1535,5 +1537,139 @@ export const api = {
             console.error('Error fetching platform stats:', error);
             return { mrr: 0, activeTenants: 0, totalUsers: 0 };
         }
+    },
+
+    // =====================================================
+    // DOTACIONES
+    // =====================================================
+    getDotaciones: async (): Promise<EquipmentAssignment[]> => {
+        try {
+            const { data, error } = await supabase
+                .from('dotaciones')
+                .select(`
+                    *,
+                    employee:users!employee_id (nombre)
+                `);
+            if (error) throw error;
+            return data.map(d => ({
+                id: d.id,
+                tenantId: d.tenant_id,
+                employeeId: d.employee_id,
+                employeeNombre: (Array.isArray(d.employee) ? d.employee[0] : d.employee)?.nombre,
+                itemNombre: d.item_nombre,
+                cantidad: d.cantidad,
+                talla: d.talla,
+                estado: d.estado,
+                fechaEntrega: d.fecha_entrega,
+                recibidoPor: d.recibido_por,
+                notas: d.notas
+            }));
+        } catch (error) {
+            console.error('Error fetching dotaciones:', error);
+            return [];
+        }
+    },
+
+    addDotacion: async (data: Omit<EquipmentAssignment, 'id' | 'tenantId'>, actor: User): Promise<EquipmentAssignment> => {
+        const { data: result, error } = await supabase
+            .from('dotaciones')
+            .insert({
+                tenant_id: actor.tenantId,
+                employee_id: data.employeeId,
+                item_nombre: data.itemNombre,
+                cantidad: data.cantidad,
+                talla: data.talla,
+                estado: data.estado,
+                fecha_entrega: data.fechaEntrega,
+                recibido_por: data.recibidoPor,
+                notas: data.notas
+            })
+            .select()
+            .single();
+        if (error) throw error;
+        await api.logAuditEvent('EQUIPMENT_ASSIGN', `item:${result.id} (${data.itemNombre})`, actor);
+        return result;
+    },
+
+    // =====================================================
+    // COTIZACIONES
+    // =====================================================
+    getCotizaciones: async (): Promise<Quote[]> => {
+        try {
+            const { data, error } = await supabase
+                .from('cotizaciones')
+                .select(`
+                    *,
+                    cliente:contactos!cliente_id (razon_social),
+                    vendedor:users!vendedor_id (nombre)
+                `);
+            if (error) throw error;
+            return data.map(q => ({
+                id: q.id,
+                tenantId: q.tenant_id,
+                numero: q.numero,
+                clienteId: q.cliente_id,
+                clienteNombre: (Array.isArray(q.cliente) ? q.cliente[0] : q.cliente)?.razon_social,
+                monto: q.monto,
+                estado: q.estado,
+                vendedorId: q.vendedor_id,
+                vendedorNombre: (Array.isArray(q.vendedor) ? q.vendedor[0] : q.vendedor)?.nombre,
+                items: q.items,
+                fechaEmision: q.fecha_emision,
+                fechaVencimiento: q.fecha_vencimiento
+            }));
+        } catch (error) {
+            console.error('Error fetching cotizaciones:', error);
+            return [];
+        }
+    },
+
+    addCotizacion: async (data: Omit<Quote, 'id' | 'numero' | 'tenantId' | 'vendedorId' | 'estado' | 'fechaEmision'>, actor: User): Promise<Quote> => {
+        const { count } = await supabase.from('cotizaciones').select('*', { count: 'exact', head: true });
+        const numero = `COT-${(count || 0) + 1001}`;
+
+        const { data: result, error } = await supabase
+            .from('cotizaciones')
+            .insert({
+                tenant_id: actor.tenantId,
+                numero,
+                cliente_id: data.clienteId,
+                monto: data.monto,
+                estado: 'Pendiente',
+                vendedor_id: actor.id,
+                items: data.items,
+                fecha_emision: new Date().toISOString().split('T')[0],
+                fecha_vencimiento: data.fechaVencimiento
+            })
+            .select()
+            .single();
+        if (error) throw error;
+        await api.logAuditEvent('QUOTE_CREATE', `quote:${result.id} (${numero})`, actor);
+        return result;
+    },
+
+    // =====================================================
+    // DOCUMENT DATA (SPREADSHEET EDITING)
+    // =====================================================
+    getDocumentData: async (docId: string): Promise<any[]> => {
+        const { data, error } = await supabase
+            .from('document_data')
+            .select('data')
+            .eq('document_id', docId)
+            .single();
+        if (error && error.code !== 'PGRST116') throw error;
+        return data?.data || [];
+    },
+
+    updateDocumentData: async (docId: string, jsonData: any[], actor: User): Promise<void> => {
+        const { error } = await supabase
+            .from('document_data')
+            .upsert({
+                document_id: docId,
+                data: jsonData,
+                updated_at: new Date().toISOString()
+            });
+        if (error) throw error;
+        await api.logAuditEvent('DOCUMENT_DATA_UPDATE', `doc:${docId}`, actor);
     },
 };

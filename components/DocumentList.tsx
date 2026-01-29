@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Document, ProcessType, DocumentStatus, DocumentType } from '../types';
 import { Filter, List, Grid, FileText, UploadCloud, Download, RefreshCw, Search, Clock } from 'lucide-react';
 import UploadDocumentModal from './UploadDocumentModal';
+import SpreadsheetEditor from './SpreadsheetEditor';
 import { api } from '../services/api';
 import DocumentActions from './DocumentActions';
 
@@ -16,7 +17,7 @@ const statusConfig = {
     [DocumentStatus.OBSOLETO]: { color: 'bg-status-red', text: 'text-white' },
 };
 
-const DocumentRow: React.FC<{ doc: Document, onStatusChange: (docId: string, status: DocumentStatus) => Promise<void>, isExpiring: boolean }> = ({ doc, onStatusChange, isExpiring }) => {
+const DocumentRow: React.FC<{ doc: Document, onStatusChange: (docId: string, status: DocumentStatus) => Promise<void>, onView: (doc: Document) => void, isExpiring: boolean }> = ({ doc, onStatusChange, onView, isExpiring }) => {
     return (
         <tr className="bg-white border-b hover:bg-gray-50">
             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
@@ -38,13 +39,13 @@ const DocumentRow: React.FC<{ doc: Document, onStatusChange: (docId: string, sta
                 {doc.fechaRevision}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <DocumentActions doc={doc} onStatusChange={onStatusChange} />
+                <DocumentActions doc={doc} onStatusChange={onStatusChange} onView={onView} />
             </td>
         </tr>
     );
 };
 
-const DocumentCard: React.FC<{ doc: Document, onStatusChange: (docId: string, status: DocumentStatus) => Promise<void>, isExpiring: boolean }> = ({ doc, onStatusChange, isExpiring }) => {
+const DocumentCard: React.FC<{ doc: Document, onStatusChange: (docId: string, status: DocumentStatus) => Promise<void>, onView: (doc: Document) => void, isExpiring: boolean }> = ({ doc, onStatusChange, onView, isExpiring }) => {
     const status = statusConfig[doc.estado];
     return (
         <div className="bg-white p-4 rounded-lg shadow-sm border w-full">
@@ -82,7 +83,7 @@ const DocumentCard: React.FC<{ doc: Document, onStatusChange: (docId: string, st
                     </div>
                 </div>
                 <div className="ml-2">
-                    <DocumentActions doc={doc} onStatusChange={onStatusChange} />
+                    <DocumentActions doc={doc} onStatusChange={onStatusChange} onView={onView} />
                 </div>
             </div>
         </div>
@@ -98,6 +99,7 @@ const DocumentList: React.FC = () => {
     const [tenant, setTenant] = useState<any>(null);
     const [isStorageLimitReached, setIsStorageLimitReached] = useState(false);
 
+    const [editingDocument, setEditingDocument] = useState<Document | null>(null);
     const [filterName, setFilterName] = useState('');
     const [filterCode, setFilterCode] = useState('');
     const [filterStatus, setFilterStatus] = useState<DocumentStatus | ''>('');
@@ -144,15 +146,25 @@ const DocumentList: React.FC = () => {
         setFilterType('');
     };
 
-    const handleUpload = async (data: { nombre: string; codigo: string; tipo: DocumentType; file: File; }) => {
+    const handleView = (doc: Document) => {
+        if (doc.contentType === 'spreadsheet') {
+            setEditingDocument(doc);
+        } else {
+            window.open(doc.archivoUrl, '_blank');
+        }
+    };
+
+    const handleUpload = async (data: { nombre: string; codigo: string; tipo: DocumentType; file?: File; contentType: 'file' | 'spreadsheet'; }) => {
         if (!user) return;
         try {
             const newDocument = await api.addDocument({
                 ...data,
+                file: data.file as File, // api.ts might expect File or handle null
                 proceso: processType as ProcessType,
                 subproceso: currentSubproceso,
                 responsableId: user.id,
                 tipo: currentDocumentType || data.tipo,
+                contentType: data.contentType
             }, user);
             addDocument(newDocument);
             setUploadModalOpen(false);
@@ -306,7 +318,7 @@ const DocumentList: React.FC = () => {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {filteredDocuments.map(doc => (
-                                <DocumentRow key={doc.id} doc={doc} onStatusChange={handleStatusChange} isExpiring={expiringDocIds.has(doc.id)} />
+                                <DocumentRow key={doc.id} doc={doc} onStatusChange={handleStatusChange} onView={handleView} isExpiring={expiringDocIds.has(doc.id)} />
                             ))}
                         </tbody>
                     </table>
@@ -315,7 +327,7 @@ const DocumentList: React.FC = () => {
                 {/* Mobile Card View */}
                 <div className="lg:hidden space-y-4 p-4">
                     {filteredDocuments.map(doc => (
-                        <DocumentCard key={doc.id} doc={doc} onStatusChange={handleStatusChange} isExpiring={expiringDocIds.has(doc.id)} />
+                        <DocumentCard key={doc.id} doc={doc} onStatusChange={handleStatusChange} onView={handleView} isExpiring={expiringDocIds.has(doc.id)} />
                     ))}
                 </div>
 
@@ -328,6 +340,13 @@ const DocumentList: React.FC = () => {
                     onClose={() => setUploadModalOpen(false)}
                     onUpload={handleUpload}
                     defaultType={currentDocumentType}
+                />
+            )}
+            {editingDocument && user && (
+                <SpreadsheetEditor
+                    document={editingDocument}
+                    user={user}
+                    onClose={() => setEditingDocument(null)}
                 />
             )}
         </>

@@ -23,7 +23,7 @@ const LoginPage: React.FC = () => {
             {/* Background Image with Overlay */}
             <div
                 className="absolute inset-0 z-0 opacity-40 bg-cover bg-center bg-no-repeat transition-transform duration-[20000ms] hover:scale-110"
-                style={{ backgroundImage: 'url("/erp_login_background_1769636649677.png")' }}
+                style={{ backgroundImage: 'url("/erp_login_background.png")' }}
             />
             <div className="absolute inset-0 z-0 bg-gradient-to-tr from-[#0a0f1d] via-transparent to-[#1e40af22]" />
 
