@@ -5,9 +5,9 @@ import { Document, DocumentStatus, DocumentType, ProcessType, User } from '../ty
 import { X, Save, Loader2, History } from 'lucide-react';
 
 interface EditDocumentModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  document: Document;
+    isOpen: boolean;
+    onClose: () => void;
+    document: Document;
 }
 
 const APOYO_SUBPROCESOS_KEYS = ['Gestión Humana', 'Compras', 'Infraestructura'];
@@ -29,7 +29,7 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({ isOpen, onClose, 
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        
+
         let processedValue: string | number = value;
         if (name === "version") {
             processedValue = parseInt(value, 10);
@@ -45,10 +45,10 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({ isOpen, onClose, 
         setIsSaving(true);
         try {
             const { id, responsableNombre, historial, ...updateData } = formData;
-            if(!id) throw new Error("Document ID is missing");
+            if (!id) throw new Error("Document ID is missing");
             // Remove properties that are not part of the update payload, like linked objects
             const updatePayload = { ...updateData };
-            delete (updatePayload as any).vinculos; 
+            delete (updatePayload as any).vinculos;
 
             await updateDocument(id, updatePayload);
             onClose();
@@ -91,7 +91,7 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({ isOpen, onClose, 
                                 <label htmlFor="codigo" className="block text-sm font-medium text-gray-700">Código</label>
                                 <input type="text" id="codigo" name="codigo" value={formData.codigo || ''} onChange={handleChange} required className="mt-1 block w-full input-style" />
                             </div>
-                             <div>
+                            <div>
                                 <label htmlFor="proceso" className="block text-sm font-medium text-gray-700">Proceso</label>
                                 <select id="proceso" name="proceso" value={formData.proceso || ''} onChange={handleChange} className="mt-1 block w-full input-style">
                                     {Object.values(ProcessType).map(p => <option key={p} value={p}>{p}</option>)}
@@ -100,17 +100,17 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({ isOpen, onClose, 
                             <div>
                                 <label htmlFor="subproceso" className="block text-sm font-medium text-gray-700">Subproceso (Apoyo)</label>
                                 <select id="subproceso" name="subproceso" value={formData.subproceso || ''} onChange={handleChange} disabled={formData.proceso !== ProcessType.APOYO} className="mt-1 block w-full input-style disabled:bg-gray-100">
-                                     <option value="">N/A</option>
+                                    <option value="">N/A</option>
                                     {APOYO_SUBPROCESOS_KEYS.map(sp => <option key={sp} value={sp}>{sp}</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label htmlFor="tipo" className="block text-sm font-medium text-gray-700">Tipo</label>
                                 <select id="tipo" name="tipo" value={formData.tipo || ''} onChange={handleChange} className="mt-1 block w-full input-style">
-                                     {Object.values(DocumentType).map(t => <option key={t} value={t}>{t}</option>)}
+                                    {Object.values(DocumentType).map(t => <option key={t} value={t}>{t}</option>)}
                                 </select>
                             </div>
-                             <div>
+                            <div>
                                 <label htmlFor="version" className="block text-sm font-medium text-gray-700">Versión</label>
                                 <input type="number" id="version" name="version" value={formData.version || 1} onChange={handleChange} min="1" className="mt-1 block w-full input-style" />
                             </div>
@@ -124,11 +124,11 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({ isOpen, onClose, 
                                     {Object.values(DocumentStatus).map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>
-                             <div className="md:col-span-2">
+                            <div className="md:col-span-2">
                                 <label htmlFor="responsableId" className="block text-sm font-medium text-gray-700">Responsable</label>
                                 <select id="responsableId" name="responsableId" value={formData.responsableId || ''} onChange={handleChange} className="mt-1 block w-full input-style">
-                                     <option value="" disabled>Seleccione un usuario</option>
-                                    {users.filter(u => u.rol !== 'SUPERADMIN').map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                                    <option value="" disabled>Seleccione un usuario</option>
+                                    {users.filter(u => u.role?.name !== 'SUPERADMIN').map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -156,15 +156,15 @@ const EditDocumentModal: React.FC<EditDocumentModalProps> = ({ isOpen, onClose, 
                                 )}
                             </div>
                         </div>
-                        
-                         {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+
+                        {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
                     </div>
                     <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3">
                         <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary">
                             Cancelar
                         </button>
                         <button type="submit" disabled={isSaving} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary border border-transparent rounded-md shadow-sm hover:bg-brand-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary disabled:bg-gray-400 flex items-center">
-                            {isSaving ? <Loader2 className="animate-spin mr-2" size={16} /> : <Save size={16} className="mr-2"/>}
+                            {isSaving ? <Loader2 className="animate-spin mr-2" size={16} /> : <Save size={16} className="mr-2" />}
                             {isSaving ? 'Guardando...' : 'Guardar Cambios'}
                         </button>
                     </div>

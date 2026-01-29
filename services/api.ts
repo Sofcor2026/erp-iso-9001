@@ -341,20 +341,23 @@ export const api = {
 
             if (error) throw error;
 
-            return data.map(u => ({
-                id: u.id,
-                email: u.email,
-                nombre: u.nombre,
-                role: {
-                    id: u.role.id,
-                    name: u.role.name,
-                    description: u.role.description,
-                    permissions: u.role.permissions as Permission[],
-                    isDefault: u.role.is_default,
-                },
-                tenantId: u.tenant_id,
-                activo: u.activo,
-            }));
+            return data.map(u => {
+                const roleData = Array.isArray(u.role) ? u.role[0] : u.role;
+                return {
+                    id: u.id,
+                    email: u.email,
+                    nombre: u.nombre,
+                    role: {
+                        id: roleData.id,
+                        name: roleData.name,
+                        description: roleData.description,
+                        permissions: roleData.permissions as Permission[],
+                        isDefault: roleData.is_default,
+                    },
+                    tenantId: u.tenant_id,
+                    activo: u.activo,
+                };
+            });
         } catch (error) {
             console.error('Error fetching users:', error);
             return [];
@@ -613,8 +616,8 @@ export const api = {
                 fechaCreacion: newTenant.fecha_creacion,
                 userCount: newTenant.user_count,
                 storageUsed: parseFloat(newTenant.storage_used),
-                userLimit: newTenant.plan?.user_limit || 0,
-                storageLimit: newTenant.plan?.storage_limit || 0,
+                userLimit: (Array.isArray(newTenant.plan) ? newTenant.plan[0] : newTenant.plan)?.user_limit || 0,
+                storageLimit: (Array.isArray(newTenant.plan) ? newTenant.plan[0] : newTenant.plan)?.storage_limit || 0,
             };
         } catch (error) {
             console.error('Error creating tenant:', error);
