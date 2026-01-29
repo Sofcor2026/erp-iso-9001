@@ -22,30 +22,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [originalUser, setOriginalUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
 
+    const fetchingRef = React.useRef<string | null>(null);
+
     // Función para obtener datos completos del usuario desde la tabla users
     const fetchUserData = useCallback(async (authUserId: string): Promise<User | null> => {
+        // Evitar múltiples llamadas concurrentes para el mismo usuario
+        if (fetchingRef.current === authUserId) return null;
+        fetchingRef.current = authUserId;
+
         try {
+            console.log('Fetching user data for:', authUserId);
             const { data, error } = await supabase
                 .from('users')
                 .select(`
-          id,
-          email,
-          nombre,
-          tenant_id,
-          activo,
-          role:roles (
-            id,
-            name,
-            description,
-            permissions,
-            is_default
-          )
-        `)
+                    id,
+                    email,
+                    nombre,
+                    tenant_id,
+                    activo,
+                    role:roles (
+                        id,
+                        name,
+                        description,
+                        permissions,
+                        is_default
+                    )
+                `)
                 .eq('id', authUserId)
                 .single();
 
             if (error) {
-                console.error('Error fetching user data:', error);
+                // Si es un error de aborto, no logueamos como error crítico
+                if (error.message?.includes('abort') || error.code === 'AbortError') {
+                    console.warn('Fetch user data aborted');
+                } else {
+                    console.error('Error fetching user data:', error);
+                }
                 return null;
             }
 
@@ -72,24 +84,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             };
 
             return userData;
-        } catch (error) {
-            console.error('Error in fetchUserData:', error);
+        } catch (error: any) {
+            if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+                console.warn('Fetch user data aborted (catch)');
+            } else {
+                console.error('Error in fetchUserData:', error);
+            }
             return null;
+        } finally {
+            fetchingRef.current = null;
         }
     }, []);
 
     // Establecer el usuario inicial y escuchar cambios
     useEffect(() => {
         let isMounted = true;
-
-        // --- SAFETY TIMEOUT ---
-        // Si en 4 segundos no hay respuesta clara, desbloqueamos la pantalla
-        const timeoutId = setTimeout(() => {
-            if (isMounted && loading) {
-                console.warn('Auth check timed out. Forcing load completion.');
-                setLoading(false);
-            }
-        }, 4000);
 
         async function initAuth() {
             try {
@@ -100,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     const userData = await fetchUserData(session.user.id);
                     if (userData && isMounted) {
                         setUser(userData);
-                        // Restaurar impersonation if exists
+                        // Restaurar impersonation
                         const storedOriginalUser = localStorage.getItem('erp-original-user');
                         if (storedOriginalUser) {
                             try {
@@ -116,7 +125,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } finally {
                 if (isMounted) {
                     setLoading(false);
-                    clearTimeout(timeoutId);
                 }
             }
         }
@@ -132,20 +140,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setOriginalUser(null);
                     localStorage.removeItem('erp-original-user');
                     setLoading(false);
-                    clearTimeout(timeoutId);
                     return;
                 }
 
-                if (session?.user) {
-                    const userData = await fetchUserData(session.user.id);
-                    if (userData && isMounted) {
-                        setUser(userData);
+                if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+                    // Solo fetch si no tenemos el usuario ya cargado para este ID
+                    if (user?.id !== session.user.id) {
+                        const userData = await fetchUserData(session.user.id);
+                        if (userData && isMounted) {
+                            setUser(userData);
+                        }
                     }
                 }
 
                 if (isMounted) {
                     setLoading(false);
-                    clearTimeout(timeoutId);
                 }
             }
         );
@@ -153,9 +162,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => {
             isMounted = false;
             subscription.unsubscribe();
-            clearTimeout(timeoutId);
         };
-    }, [fetchUserData]);
+    }, [fetchUserData, user?.id]);
 
     const login = async (email: string, password: string) => {
         setLoading(true);
@@ -168,7 +176,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (error) throw error;
 
             if (data.user) {
+                // Intentar obtener los datos. Si falla por aborto, el listener onAuthStateChange lo reintentará
                 const userData = await fetchUserData(data.user.id);
+
                 if (userData) {
                     // Verificar si el tenant está suspendido
                     if (userData.tenantId) {
@@ -183,10 +193,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                             throw new Error('Tenant suspendido. Contacte al administrador.');
                         }
                     }
-
                     setUser(userData);
                 } else {
-                    throw new Error('Usuario no encontrado en el sistema. Contacte al administrador.');
+                    // Si llegamos aquí y no hay userData, esperamos un poco a que el listener trabaje
+                    // o lanzamos un error si realmente no existe.
+                    // Para evitar falsos negativos por AbortError, daremos una pequeña espera.
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Si el listener ya lo puso, genial. Si no, reintentamos una vez más.
+                    if (!user) {
+                        const secondTry = await fetchUserData(data.user.id);
+                        if (secondTry) {
+                            setUser(secondTry);
+                        } else {
+                            throw new Error('Usuario no encontrado en el sistema. Contacte al administrador.');
+                        }
+                    }
                 }
             }
         } catch (error) {
