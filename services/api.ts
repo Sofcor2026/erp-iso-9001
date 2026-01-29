@@ -517,11 +517,17 @@ export const api = {
             }
 
             // 2. Crear el usuario en Auth (via Edge Function)
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
             const { data: functionData, error: functionError } = await supabase.functions.invoke('create-admin-user', {
                 body: {
                     email: userData.email,
                     nombre: userData.nombre,
                     password: userData.password
+                },
+                headers: {
+                    Authorization: `Bearer ${token}`
                 }
             });
 
