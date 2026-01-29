@@ -1,7 +1,6 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { User, Permission, Role } from '../types';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
+import { User, Permission } from '../types';
 import { supabase } from '../src/lib/supabase';
-import { Session, AuthError } from '@supabase/supabase-js';
 
 interface AuthContextType {
     user: User | null;
@@ -21,262 +20,153 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [originalUser, setOriginalUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const initRef = useRef(false);
 
-    const fetchingRef = React.useRef<string | null>(null);
-
-    // Función para obtener datos completos del usuario desde la tabla users
     const fetchUserData = useCallback(async (authUserId: string): Promise<User | null> => {
-        // Evitar múltiples llamadas concurrentes para el mismo usuario
-        if (fetchingRef.current === authUserId) return null;
-        fetchingRef.current = authUserId;
-
         try {
-            console.log('Fetching user data for:', authUserId);
-            const { data, error } = await supabase
+            console.log('[Auth] Fetching profile for:', authUserId);
+
+            // Primero el usuario con una consulta simple para evitar errores de joins complejos si hay problemas de RLS
+            const { data: userDataRaw, error: userError } = await supabase
                 .from('users')
-                .select(`
-                    id,
-                    email,
-                    nombre,
-                    tenant_id,
-                    activo,
-                    role:roles (
-                        id,
-                        name,
-                        description,
-                        permissions,
-                        is_default
-                    )
-                `)
+                .select('*')
                 .eq('id', authUserId)
                 .single();
 
-            if (error) {
-                // Si es un error de aborto, no logueamos como error crítico
-                if (error.message?.includes('abort') || error.code === 'AbortError') {
-                    console.warn('Fetch user data aborted');
-                } else {
-                    console.error('Error fetching user data:', error);
-                }
+            if (userError || !userDataRaw) {
+                console.error('[Auth] User record not found:', userError);
                 return null;
             }
 
-            if (!data) {
-                console.error('User not found in users table');
+            // Luego el rol por separado para asegurar que no falle todo el login por un join
+            const { data: roleDataRaw, error: roleError } = await supabase
+                .from('roles')
+                .select('*')
+                .eq('id', userDataRaw.role_id)
+                .single();
+
+            if (roleError) {
+                console.error('[Auth] Role not found for user:', roleError);
                 return null;
             }
 
-            // Transformar los datos de Supabase al formato de nuestro User type
-            const roleData = Array.isArray(data.role) ? data.role[0] : data.role;
             const userData: User = {
-                id: data.id,
-                email: data.email,
-                nombre: data.nombre,
+                id: userDataRaw.id,
+                email: userDataRaw.email,
+                nombre: userDataRaw.nombre,
                 role: {
-                    id: roleData.id,
-                    name: roleData.name,
-                    description: roleData.description,
-                    permissions: roleData.permissions as Permission[],
-                    isDefault: roleData.is_default,
+                    id: roleDataRaw.id,
+                    name: roleDataRaw.name,
+                    description: roleDataRaw.description,
+                    permissions: roleDataRaw.permissions as Permission[],
+                    isDefault: roleDataRaw.is_default,
                 },
-                tenantId: data.tenant_id,
-                activo: data.activo,
+                tenantId: userDataRaw.tenant_id,
+                activo: userDataRaw.activo,
             };
 
             return userData;
-        } catch (error: any) {
-            if (error.name === 'AbortError' || error.message?.includes('aborted')) {
-                console.warn('Fetch user data aborted (catch)');
-            } else {
-                console.error('Error in fetchUserData:', error);
-            }
+        } catch (err) {
+            console.error('[Auth] Critical error in fetchUserData:', err);
             return null;
-        } finally {
-            fetchingRef.current = null;
         }
     }, []);
 
-    // Establecer el usuario inicial y escuchar cambios
-    useEffect(() => {
-        let isMounted = true;
-
-        // --- SAFETY TIMEOUT ---
-        const timeoutId = setTimeout(() => {
-            if (isMounted && loading) {
-                console.warn('Auth check timed out. Forcing load completion.');
-                setLoading(false);
-            }
-        }, 5000);
-
-        async function initAuth() {
-            try {
-                setLoading(true);
-                const { data: { session } } = await supabase.auth.getSession();
-
-                if (session?.user && isMounted) {
-                    const userData = await fetchUserData(session.user.id);
-                    if (userData && isMounted) {
-                        setUser(userData);
-                        // Restaurar impersonation
-                        const storedOriginalUser = localStorage.getItem('erp-original-user');
-                        if (storedOriginalUser) {
-                            try {
-                                setOriginalUser(JSON.parse(storedOriginalUser));
-                            } catch (e) {
-                                localStorage.removeItem('erp-original-user');
-                            }
-                        }
+    const refreshSession = useCallback(async () => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                const userData = await fetchUserData(session.user.id);
+                if (userData) {
+                    setUser(userData);
+                    // Restaurar impersonation si existe
+                    const stored = localStorage.getItem('erp-original-user');
+                    if (stored) {
+                        try { setOriginalUser(JSON.parse(stored)); } catch { localStorage.removeItem('erp-original-user'); }
                     }
                 }
-            } catch (error) {
-                console.error('Auth initialization error:', error);
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
-                    clearTimeout(timeoutId);
-                }
+            } else {
+                setUser(null);
             }
+        } catch (err) {
+            console.error('[Auth] Refresh session error:', err);
+        } finally {
+            setLoading(false);
         }
+    }, [fetchUserData]);
 
-        initAuth();
+    useEffect(() => {
+        if (initRef.current) return;
+        initRef.current = true;
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
-                if (!isMounted) return;
+        refreshSession();
 
-                console.log('Auth event:', event);
-
-                if (event === 'SIGNED_OUT') {
-                    setUser(null);
-                    setOriginalUser(null);
-                    localStorage.removeItem('erp-original-user');
-                    setLoading(false);
-                    clearTimeout(timeoutId);
-                    return;
-                }
-
-                if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user) {
-                    // Solo fetch si no tenemos el usuario cargado
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log('[Auth] Event:', event);
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                if (session?.user) {
                     const userData = await fetchUserData(session.user.id);
-                    if (userData && isMounted) {
-                        setUser(userData);
-                    }
+                    if (userData) setUser(userData);
                 }
-
-                if (isMounted) {
-                    setLoading(false);
-                    clearTimeout(timeoutId);
-                }
+            } else if (event === 'SIGNED_OUT') {
+                setUser(null);
+                setOriginalUser(null);
+                localStorage.removeItem('erp-original-user');
             }
-        );
+            setLoading(false);
+        });
 
-        return () => {
-            isMounted = false;
-            subscription.unsubscribe();
-            clearTimeout(timeoutId);
-        };
-    }, [fetchUserData]); // user?.id removed to avoid loops
+        return () => subscription.unsubscribe();
+    }, [refreshSession, fetchUserData]);
 
     const login = async (email: string, password: string) => {
         setLoading(true);
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
-
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) throw error;
 
             if (data.user) {
-                // Intentar obtener los datos. Si falla por aborto, el listener onAuthStateChange lo reintentará
                 const userData = await fetchUserData(data.user.id);
-
-                if (userData) {
-                    // Verificar si el tenant está suspendido
-                    if (userData.tenantId) {
-                        const { data: tenant, error: tenantError } = await supabase
-                            .from('tenants')
-                            .select('estado')
-                            .eq('id', userData.tenantId)
-                            .single();
-
-                        if (tenantError || tenant?.estado === 'Suspendido') {
-                            await supabase.auth.signOut();
-                            throw new Error('Tenant suspendido. Contacte al administrador.');
-                        }
-                    }
-                    setUser(userData);
+                if (!userData) {
+                    // Espera mínima por si el trigger de onAuthStateChange está procesando
+                    await new Promise(r => setTimeout(r, 800));
+                    if (!user) throw new Error('Usuario registrado pero sin perfil configurado en el sistema.');
                 } else {
-                    // Si llegamos aquí y no hay userData, esperamos un poco a que el listener trabaje
-                    // o lanzamos un error si realmente no existe.
-                    // Para evitar falsos negativos por AbortError, daremos una pequeña espera.
-                    await new Promise(resolve => setTimeout(resolve, 500));
-
-                    // Si el listener ya lo puso, genial. Si no, reintentamos una vez más.
-                    if (!user) {
-                        const secondTry = await fetchUserData(data.user.id);
-                        if (secondTry) {
-                            setUser(secondTry);
-                        } else {
-                            throw new Error('Usuario no encontrado en el sistema. Contacte al administrador.');
-                        }
-                    }
+                    setUser(userData);
                 }
             }
-        } catch (error) {
-            console.error('Login error:', error);
-            throw error;
+        } catch (err: any) {
+            console.error('[Auth] Login failed:', err);
+            throw err;
         } finally {
             setLoading(false);
         }
     };
 
     const logout = async () => {
-        try {
-            await supabase.auth.signOut();
-            setUser(null);
-            setOriginalUser(null);
-            localStorage.removeItem('erp-original-user');
-        } catch (error) {
-            console.error('Logout error:', error);
-        }
+        await supabase.auth.signOut();
+        setUser(null);
+        setOriginalUser(null);
+        localStorage.removeItem('erp-original-user');
     };
 
     const impersonate = async (tenantId: string): Promise<User | null> => {
-        if (!user || !hasPermission('platform:access')) {
-            throw new Error('Only SuperAdmins can impersonate.');
-        }
-
+        if (!user) return null;
         setLoading(true);
         try {
-            // Buscar el admin del tenant
             const { data, error } = await supabase
                 .from('users')
-                .select(`
-          id,
-          email,
-          nombre,
-          tenant_id,
-          activo,
-          role:roles (
-            id,
-            name,
-            description,
-            permissions,
-            is_default
-          )
-        `)
+                .select('*')
                 .eq('tenant_id', tenantId)
                 .eq('role_id', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')
                 .single();
 
-            if (error || !data) {
-                console.error('Error finding tenant admin:', error);
-                return null;
-            }
+            if (error || !data) return null;
 
-            const roleData = Array.isArray(data.role) ? data.role[0] : data.role;
-            const tenantAdmin: User = {
+            const { data: roleData } = await supabase.from('roles').select('*').eq('id', data.role_id).single();
+            if (!roleData) return null;
+
+            const targetUser: User = {
                 id: data.id,
                 email: data.email,
                 nombre: data.nombre,
@@ -284,73 +174,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     id: roleData.id,
                     name: roleData.name,
                     description: roleData.description,
-                    permissions: roleData.permissions as Permission[],
-                    isDefault: roleData.is_default,
+                    permissions: roleData.permissions,
+                    isDefault: roleData.is_default
                 },
                 tenantId: data.tenant_id,
-                activo: data.activo,
+                activo: data.activo
             };
 
-            // Guardar el usuario original
             setOriginalUser(user);
-            setUser(tenantAdmin);
+            setUser(targetUser);
             localStorage.setItem('erp-original-user', JSON.stringify(user));
-
-            // Log audit event
-            await supabase.from('audit_logs').insert({
-                actor: user.email,
-                action: 'IMPERSONATE_START',
-                resource: `tenant:${tenantId}`,
-                metadata: { original_user: user.email, impersonated_user: tenantAdmin.email }
-            });
-
-            return tenantAdmin;
-        } catch (error) {
-            console.error('Impersonation failed:', error);
-            return null;
+            return targetUser;
         } finally {
             setLoading(false);
         }
     };
 
-    const stopImpersonating = async () => {
-        if (!originalUser) return;
-
-        // Log audit event
-        if (user) {
-            await supabase.from('audit_logs').insert({
-                actor: originalUser.email,
-                action: 'IMPERSONATE_STOP',
-                resource: `tenant:${user.tenantId}`,
-                metadata: { original_user: originalUser.email, impersonated_user: user.email }
-            });
+    const stopImpersonating = () => {
+        if (originalUser) {
+            setUser(originalUser);
+            setOriginalUser(null);
+            localStorage.removeItem('erp-original-user');
         }
-
-        setUser(originalUser);
-        setOriginalUser(null);
-        localStorage.removeItem('erp-original-user');
     };
 
     const hasPermission = (permission: Permission): boolean => {
         return user?.role?.permissions?.includes(permission) ?? false;
     };
 
-    const isImpersonating = !!originalUser;
-
     return (
-        <AuthContext.Provider
-            value={{
-                user,
-                loading,
-                login,
-                logout,
-                isImpersonating,
-                originalUser,
-                impersonate,
-                stopImpersonating,
-                hasPermission,
-            }}
-        >
+        <AuthContext.Provider value={{
+            user, loading, login, logout, isImpersonating: !!originalUser,
+            originalUser, impersonate, stopImpersonating, hasPermission
+        }}>
             {children}
         </AuthContext.Provider>
     );
@@ -358,8 +214,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
+    if (!context) throw new Error('useAuth must be used within an AuthProvider');
     return context;
 };
