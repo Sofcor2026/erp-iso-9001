@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { DocumentType } from '../types';
-import { X, UploadCloud } from 'lucide-react';
+import { X, UploadCloud, FileSpreadsheet, CheckCircle2, AlertCircle } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface UploadDocumentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpload: (data: { nombre: string; codigo: string; tipo: DocumentType; file?: File; contentType: 'file' | 'spreadsheet'; }) => void;
+  onUpload: (data: {
+    nombre: string;
+    codigo: string;
+    tipo: DocumentType;
+    file?: File;
+    contentType: 'file' | 'spreadsheet';
+    initialData?: any[];
+  }) => void;
   defaultType?: DocumentType;
 }
 
@@ -14,6 +22,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
   const [codigo, setCodigo] = useState('');
   const [tipo, setTipo] = useState<DocumentType>(DocumentType.PROCEDIMIENTO);
   const [contentType, setContentType] = useState<'file' | 'spreadsheet'>('file');
+  const [initialData, setInitialData] = useState<any[] | null>(null);
   const [fileName, setFileName] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState('');
@@ -29,6 +38,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
     setCodigo('');
     setTipo(defaultType || DocumentType.PROCEDIMIENTO);
     setContentType('file');
+    setInitialData(null);
     setFileName('');
     setFile(null);
     setError('');
@@ -38,6 +48,34 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
     clearForm();
     onClose();
   }
+
+  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+
+        if (data.length > 0) {
+          setInitialData(data);
+          setFileName(file.name);
+          // Auto-fill name if empty
+          if (!nombre) setNombre(file.name.replace(/\.[^/.]+$/, ""));
+        } else {
+          setError("El archivo Excel parece estar vacío.");
+        }
+      } catch (err) {
+        setError("Error al leer el archivo Excel. Asegúrese de que sea un formato válido.");
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +89,8 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
       codigo,
       tipo,
       file: file || undefined,
-      contentType
+      contentType,
+      initialData: initialData || undefined
     });
     handleClose();
   };
@@ -87,14 +126,14 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
             <div className="flex p-1 bg-gray-100 rounded-lg mb-2">
               <button
                 type="button"
-                onClick={() => setContentType('file')}
+                onClick={() => { setContentType('file'); setInitialData(null); setFileName(''); }}
                 className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${contentType === 'file' ? 'bg-white shadow-sm text-brand-primary' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Archivo (PDF/IMG)
               </button>
               <button
                 type="button"
-                onClick={() => setContentType('spreadsheet')}
+                onClick={() => { setContentType('spreadsheet'); setFileName(''); }}
                 className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${contentType === 'spreadsheet' ? 'bg-white shadow-sm text-brand-primary' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Base de Datos (Editable)
@@ -117,7 +156,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
                 ))}
               </select>
             </div>
-            {contentType === 'file' && (
+            {contentType === 'file' ? (
               <div>
                 <label className="block text-sm font-medium text-gray-700">Archivo</label>
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
@@ -136,15 +175,50 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ isOpen, onClo
                   </div>
                 </div>
               </div>
-            )}
-            {contentType === 'spreadsheet' && (
-              <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700 flex gap-3">
-                <div className="bg-blue-100 p-2 rounded-lg h-fit">
-                  <UploadCloud size={16} />
-                </div>
-                <div>
-                  <p className="font-bold">Modo Base de Datos Activado</p>
-                  <p>No requiere archivo. Se creará una tabla vacía que podrás editar directamente en la plataforma.</p>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                  <div className="flex gap-3 mb-3">
+                    <div className="bg-blue-100 p-2 rounded-lg h-fit">
+                      <FileSpreadsheet size={20} className="text-blue-700" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-blue-800">Cargar desde Excel (Opcional)</p>
+                      <p className="text-xs text-blue-600">Importa tus filas y columnas existentes.</p>
+                    </div>
+                  </div>
+
+                  <div className="relative group">
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls, .csv"
+                      onChange={handleExcelImport}
+                      className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                    />
+                    <div className={`p-4 border-2 border-dashed rounded-xl transition-all flex flex-col items-center gap-2 ${initialData ? 'border-green-300 bg-green-50' : 'border-blue-200 bg-white group-hover:border-blue-400 group-hover:bg-blue-50'}`}>
+                      {initialData ? (
+                        <>
+                          <CheckCircle2 size={24} className="text-green-500" />
+                          <div className="text-center">
+                            <p className="text-xs font-bold text-green-700">{fileName}</p>
+                            <p className="text-[10px] text-green-600">{initialData.length} filas detectadas</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud size={24} className="text-blue-400" />
+                          <p className="text-xs font-medium text-blue-500">Clic para importar Excel</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {!initialData && (
+                    <div className="mt-4 flex items-center gap-2 text-[10px] text-gray-500 bg-gray-100/50 p-2 rounded-md">
+                      <AlertCircle size={12} />
+                      <span>Si no subes nada, se creará una base de datos vacía.</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -157,7 +157,7 @@ export const api = {
     },
 
     addDocument: async (
-        newDocData: Omit<Document, 'id' | 'version' | 'estado' | 'fechaEmision' | 'fechaRevision' | 'archivoUrl' | 'responsableNombre'> & { file?: File },
+        newDocData: Omit<Document, 'id' | 'version' | 'estado' | 'fechaEmision' | 'fechaRevision' | 'archivoUrl' | 'responsableNombre'> & { file?: File; initialData?: any[] },
         creator: User
     ): Promise<Document> => {
         try {
@@ -235,6 +235,15 @@ export const api = {
                 .single();
 
             if (error) throw error;
+
+            // 4.5. Insertar datos iniciales si es spreadsheet
+            if (newDocData.contentType === 'spreadsheet' && newDocData.initialData) {
+                await supabase.from('document_data').insert({
+                    document_id: data.id,
+                    data: newDocData.initialData,
+                    updated_at: new Date().toISOString()
+                });
+            }
 
             // 5. Actualizar contador de almacenamiento del tenant
             await supabase.rpc('increment_tenant_storage', { t_id: creator.tenantId, amount: fileSizeGB });

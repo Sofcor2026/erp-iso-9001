@@ -154,17 +154,18 @@ const DocumentList: React.FC = () => {
         }
     };
 
-    const handleUpload = async (data: { nombre: string; codigo: string; tipo: DocumentType; file?: File; contentType: 'file' | 'spreadsheet'; }) => {
+    const handleUpload = async (data: { nombre: string; codigo: string; tipo: DocumentType; file?: File; contentType: 'file' | 'spreadsheet'; initialData?: any[]; }) => {
         if (!user) return;
         try {
             const newDocument = await api.addDocument({
                 ...data,
-                file: data.file as File, // api.ts might expect File or handle null
+                file: data.file as File, // api.ts handles optionality
                 proceso: processType as ProcessType,
                 subproceso: currentSubproceso,
                 responsableId: user.id,
                 tipo: currentDocumentType || data.tipo,
-                contentType: data.contentType
+                contentType: data.contentType,
+                initialData: data.initialData
             }, user);
             addDocument(newDocument);
             setUploadModalOpen(false);
