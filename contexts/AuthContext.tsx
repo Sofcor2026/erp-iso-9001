@@ -78,22 +78,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, []);
 
-    // Establecer el usuario inicial si ya hay una sesión (sin esperar al listener)
+    // Establecer el usuario inicial y escuchar cambios
     useEffect(() => {
         let isMounted = true;
 
         async function initAuth() {
-            setLoading(true);
             try {
+                // Solo poner loading si no tenemos usuario (evitar parpadeo en cambios de token)
+                setLoading(true);
+
                 const { data: { session } } = await supabase.auth.getSession();
+                console.log('Initial session check:', session?.user?.email || 'No session');
+
                 if (session?.user && isMounted) {
                     const userData = await fetchUserData(session.user.id);
                     if (userData && isMounted) {
                         setUser(userData);
-                        // Restaurar impersonation si existe
+                        // Restaurar impersonation if exists
                         const storedOriginalUser = localStorage.getItem('erp-original-user');
                         if (storedOriginalUser) {
-                            setOriginalUser(JSON.parse(storedOriginalUser));
+                            try {
+                                setOriginalUser(JSON.parse(storedOriginalUser));
+                            } catch (e) {
+                                localStorage.removeItem('erp-original-user');
+                            }
                         }
                     }
                 }
@@ -106,25 +114,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         initAuth();
 
-        // Escuchar cambios en la autenticación
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
+                console.log('Auth event triggered:', event, session?.user?.email);
+
                 if (!isMounted) return;
 
-                console.log('Auth state changed:', event);
-
                 if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-                    // Solo fetch si el ID es diferente o no tenemos usuario
-                    if (!user || user.id !== session.user.id) {
-                        const userData = await fetchUserData(session.user.id);
-                        if (userData && isMounted) {
-                            setUser(userData);
-                        }
+                    // Fetch data to ensure it's fresh and includes roles/permissions
+                    const userData = await fetchUserData(session.user.id);
+                    if (userData && isMounted) {
+                        setUser(userData);
                     }
+                    setLoading(false);
                 } else if (event === 'SIGNED_OUT') {
                     setUser(null);
                     setOriginalUser(null);
                     localStorage.removeItem('erp-original-user');
+                    setLoading(false);
                 }
             }
         );
@@ -133,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isMounted = false;
             subscription.unsubscribe();
         };
-    }, [fetchUserData, user?.id]);
+    }, [fetchUserData]); // user?.id removed from dependencies
 
     const login = async (email: string, password: string) => {
         setLoading(true);
