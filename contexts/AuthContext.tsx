@@ -72,38 +72,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, []);
 
-    const refreshSession = useCallback(async () => {
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) {
-                const userData = await fetchUserData(session.user.id);
-                if (userData) {
-                    setUser(userData);
-                    // Restaurar impersonation si existe
-                    const stored = localStorage.getItem('erp-original-user');
-                    if (stored) {
-                        try { setOriginalUser(JSON.parse(stored)); } catch { localStorage.removeItem('erp-original-user'); }
-                    }
-                }
-            } else {
-                setUser(null);
-            }
-        } catch (err) {
-            console.error('[Auth] Refresh session error:', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [fetchUserData]);
 
     useEffect(() => {
         if (initRef.current) return;
         initRef.current = true;
 
-        refreshSession();
+        const initialize = async () => {
+            console.log('[Auth] Starting initial session check...');
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) {
+                    const userData = await fetchUserData(session.user.id);
+                    if (userData) {
+                        setUser(userData);
+                        const stored = localStorage.getItem('erp-original-user');
+                        if (stored) {
+                            try { setOriginalUser(JSON.parse(stored)); } catch { localStorage.removeItem('erp-original-user'); }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('[Auth] Init error:', err);
+            } finally {
+                setLoading(false);
+                console.log('[Auth] Initialization finished.');
+            }
+        };
+
+        initialize();
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log('[Auth] Event:', event);
-            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            console.log('[Auth] State change event:', event);
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
                 if (session?.user) {
                     const userData = await fetchUserData(session.user.id);
                     if (userData) setUser(userData);
@@ -116,8 +116,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setLoading(false);
         });
 
-        return () => subscription.unsubscribe();
-    }, [refreshSession, fetchUserData]);
+        // Fallback: si después de 6 segundos seguimos cargando, forzar el fin de carga
+        // Esto previene que el sistema se quede colgado en "Iniciando sistema..."
+        const timer = setTimeout(() => {
+            setLoading(prev => {
+                if (prev) {
+                    console.warn('[Auth] Loading timeout reached. Forcing load completion.');
+                    return false;
+                }
+                return prev;
+            });
+        }, 6000);
+
+        return () => {
+            subscription.unsubscribe();
+            clearTimeout(timer);
+        };
+    }, [fetchUserData]);
 
     const login = async (email: string, password: string) => {
         setLoading(true);
