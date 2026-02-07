@@ -157,7 +157,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onSu
 
                         {!fixedTenantId && actor?.role?.name === 'SUPERADMIN' && (
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1">Tenant</label>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Empresa</label>
                                 <div className="relative">
                                     <select
                                         value={tenantId}

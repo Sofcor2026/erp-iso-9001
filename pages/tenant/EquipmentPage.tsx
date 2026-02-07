@@ -28,7 +28,7 @@ const EquipmentPage: React.FC = () => {
         try {
             const [data, usersData] = await Promise.all([
                 api.getDotaciones(),
-                api.getUsers()
+                api.getUsers(currentUser.tenantId)
             ]);
             setAssignments(data);
             setUsers(usersData);

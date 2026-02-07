@@ -21,7 +21,7 @@ const PlatformHomePage: React.FC = () => {
             </div>
         );
     }
-    
+
     return (
         <div className="space-y-8">
             <div>
@@ -31,30 +31,30 @@ const PlatformHomePage: React.FC = () => {
 
             {/* Business KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <StatCard 
-                    title="Ingreso Mensual Recurrente (MRR)" 
-                    value={stats?.mrr.toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) || '$0 COP'} 
-                    icon={<DollarSign size={24}/>} 
+                <StatCard
+                    title="Ingreso Mensual Recurrente (MRR)"
+                    value={stats?.mrr.toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) || '$0 COP'}
+                    icon={<DollarSign size={24} />}
                 />
-                <StatCard 
-                    title="Tenants Activos" 
-                    value={stats?.activeTenants.toString() || '0'} 
-                    icon={<Building size={24}/>}
+                <StatCard
+                    title="Empresas Activas"
+                    value={stats?.activeTenants.toString() || '0'}
+                    icon={<Building size={24} />}
                 />
-                 <StatCard 
-                    title="Usuarios Totales Activos" 
-                    value={stats?.totalUsers.toString() || '0'} 
-                    icon={<Users size={24}/>}
+                <StatCard
+                    title="Usuarios Totales Activos"
+                    value={stats?.totalUsers.toString() || '0'}
+                    icon={<Users size={24} />}
                 />
             </div>
-            
+
             {/* Charts Section - Placeholders */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 <div className="bg-white p-6 rounded-lg shadow-sm border">
-                    <h3 className="font-semibold text-gray-800">Nuevos Tenants (Últimos 30 días)</h3>
+                <div className="bg-white p-6 rounded-lg shadow-sm border">
+                    <h3 className="font-semibold text-gray-800">Nuevas Empresas (Últimos 30 días)</h3>
                     <div className="h-64 flex items-center justify-center text-gray-400">Gráfico de tendencia no disponible</div>
                 </div>
-                 <div className="bg-white p-6 rounded-lg shadow-sm border">
+                <div className="bg-white p-6 rounded-lg shadow-sm border">
                     <h3 className="font-semibold text-gray-800">Planes más Populares</h3>
                     <div className="h-64 flex items-center justify-center text-gray-400">Gráfico de torta no disponible</div>
                 </div>
@@ -67,23 +67,23 @@ const PlatformHomePage: React.FC = () => {
                     <ul className="divide-y divide-gray-200">
                         <li className="py-3 flex items-center justify-between">
                             <span className="font-medium text-gray-700">Base de Datos</span>
-                            <span className="flex items-center text-green-600"><CheckCircle size={16} className="mr-2"/> Operacional</span>
+                            <span className="flex items-center text-green-600"><CheckCircle size={16} className="mr-2" /> Operacional</span>
                         </li>
                         <li className="py-3 flex items-center justify-between">
                             <span className="font-medium text-gray-700">Cache (Redis)</span>
-                            <span className="flex items-center text-green-600"><CheckCircle size={16} className="mr-2"/> Operacional</span>
+                            <span className="flex items-center text-green-600"><CheckCircle size={16} className="mr-2" /> Operacional</span>
                         </li>
                         <li className="py-3 flex items-center justify-between">
                             <span className="font-medium text-gray-700">Almacenamiento (S3)</span>
-                            <span className="flex items-center text-green-600"><CheckCircle size={16} className="mr-2"/> Operacional</span>
+                            <span className="flex items-center text-green-600"><CheckCircle size={16} className="mr-2" /> Operacional</span>
                         </li>
                         <li className="py-3 flex items-center justify-between">
                             <span className="font-medium text-gray-700">Latencia API (p95)</span>
-                            <span className="flex items-center text-gray-700"><Clock size={16} className="mr-2"/> 120ms</span>
+                            <span className="flex items-center text-gray-700"><Clock size={16} className="mr-2" /> 120ms</span>
                         </li>
                         <li className="py-3 flex items-center justify-between">
                             <span className="font-medium text-gray-700">Tasa de Errores (5xx)</span>
-                            <span className="flex items-center text-yellow-600"><AlertCircle size={16} className="mr-2"/> 0.01%</span>
+                            <span className="flex items-center text-yellow-600"><AlertCircle size={16} className="mr-2" /> 0.01%</span>
                         </li>
                     </ul>
                 </div>

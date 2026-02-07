@@ -6,6 +6,7 @@ import { useAuth } from './AuthContext';
 interface DataContextType {
   documents: Document[];
   kpis: KPI[];
+  trainings: any[]; // Using any temporarily for fast integration, but types.ts has Training
   expiringDocuments: Document[];
   loading: boolean;
   fetchData: () => Promise<void>;
@@ -20,6 +21,7 @@ const DataContext = createContext<DataContextType | null>(null);
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [kpis, setKpis] = useState<KPI[]>([]);
+  const [trainings, setTrainings] = useState<any[]>([]);
   const [expiringDocuments, setExpiringDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -29,12 +31,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const permissions = user.role.permissions || [];
-      const [docs, kpisData] = await Promise.all([
+      const [docs, kpisData, trainingsData] = await Promise.all([
         api.getDocuments(permissions),
         api.getKPIs(),
+        api.getTrainings(user.tenantId)
       ]);
       setDocuments(docs);
       setKpis(kpisData);
+      setTrainings(trainingsData);
     } catch (error) {
       console.error('Failed to fetch data', error);
     } finally {
@@ -117,7 +121,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <DataContext.Provider value={{ documents, kpis, loading, fetchData, updateDocumentStatus, addDocument, updateDocument, createNewVersion, expiringDocuments }}>
+    <DataContext.Provider value={{ documents, kpis, trainings, loading, fetchData, updateDocumentStatus, addDocument, updateDocument, createNewVersion, expiringDocuments }}>
       {children}
     </DataContext.Provider>
   );

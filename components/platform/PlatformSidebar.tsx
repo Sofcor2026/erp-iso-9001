@@ -8,7 +8,7 @@ interface SidebarProps {
 
 const navItems = [
     { to: "/platform/admin", icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/platform/tenants", icon: Building, label: "Tenants" },
+    { to: "/platform/tenants", icon: Building, label: "Empresas" },
     { to: "/platform/users", icon: Users, label: "Usuarios" },
     { to: "/platform/plans", icon: Package, label: "Planes" },
     { to: "/platform/roles", icon: ShieldCheck, label: "Roles y Permisos" },

@@ -15,7 +15,7 @@ const TenantListPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterPlan, setFilterPlan] = useState<Plan['id'] | ''>('');
     const [filterStatus, setFilterStatus] = useState<Tenant['estado'] | ''>('');
-    
+
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
     const [isEditModalOpen, setEditModalOpen] = useState(false);
     const [tenantToEdit, setTenantToEdit] = useState<Tenant | null>(null);
@@ -97,7 +97,7 @@ const TenantListPage: React.FC = () => {
             setTenantToImpersonate(null);
         }
     };
-    
+
     const handleDelete = async () => {
         if (!tenantToDelete || deleteConfirmText !== tenantToDelete.nombre) {
             alert("El nombre del tenant no coincide.");
@@ -116,7 +116,7 @@ const TenantListPage: React.FC = () => {
     };
 
     if (loading) {
-        return <div>Cargando tenants...</div>
+        return <div>Cargando empresas...</div>
     }
 
     return (
@@ -124,18 +124,18 @@ const TenantListPage: React.FC = () => {
             <div className="space-y-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800">Gestión de Tenants</h1>
+                        <h1 className="text-2xl font-bold text-gray-800">Gestión de Empresas</h1>
                         <p className="text-gray-600 mt-1">Administre todos los clientes de la plataforma.</p>
                     </div>
                     <button onClick={() => setCreateModalOpen(true)} className="px-4 py-2 border rounded-md text-sm font-medium text-white bg-brand-primary hover:bg-brand-secondary flex items-center shadow-sm">
-                        <Building size={16} className="mr-2"/> Crear Nuevo Tenant
+                        <Building size={16} className="mr-2" /> Crear Nueva Empresa
                     </button>
                 </div>
 
                 {/* Filters */}
                 <div className="bg-white p-4 rounded-lg shadow-sm border grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="relative">
-                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <Search className="h-5 w-5 text-gray-400" />
                         </div>
                         <input
@@ -146,7 +146,7 @@ const TenantListPage: React.FC = () => {
                             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-brand-primary focus:border-brand-primary sm:text-sm"
                         />
                     </div>
-                     <select value={filterPlan} onChange={e => setFilterPlan(e.target.value as Plan['id'] | '')} className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-brand-primary focus:border-brand-primary sm:text-sm">
+                    <select value={filterPlan} onChange={e => setFilterPlan(e.target.value as Plan['id'] | '')} className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-brand-primary focus:border-brand-primary sm:text-sm">
                         <option value="">Todos los Planes</option>
                         <option value="plan-basic">Básico</option>
                         <option value="plan-pro">Pro</option>
@@ -187,7 +187,7 @@ const TenantListPage: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tenant.storageUsed.toFixed(1)} GB / {tenant.storageLimit} GB</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(tenant.fechaCreacion).toLocaleDateString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <TenantActions 
+                                            <TenantActions
                                                 tenant={tenant}
                                                 onEdit={() => handleEditClick(tenant)}
                                                 onSuspend={() => setTenantToSuspend(tenant)}
@@ -199,12 +199,12 @@ const TenantListPage: React.FC = () => {
                                 ))}
                             </tbody>
                         </table>
-                        {filteredTenants.length === 0 && <div className="p-6 text-center text-gray-500">No se encontraron tenants.</div>}
+                        {filteredTenants.length === 0 && <div className="p-6 text-center text-gray-500">No se encontraron empresas.</div>}
                     </div>
                 </div>
             </div>
 
-            <CreateTenantModal 
+            <CreateTenantModal
                 isOpen={isCreateModalOpen}
                 onClose={() => setCreateModalOpen(false)}
                 onSuccess={fetchTenants}
@@ -224,7 +224,7 @@ const TenantListPage: React.FC = () => {
                     isOpen={!!tenantToSuspend}
                     onClose={() => setTenantToSuspend(null)}
                     onConfirm={handleSuspendToggle}
-                    title={`${tenantToSuspend.estado === 'Activo' ? 'Suspender' : 'Activar'} Tenant`}
+                    title={`${tenantToSuspend.estado === 'Activo' ? 'Suspender' : 'Activar'} Empresa`}
                     message={`¿Está seguro de que desea ${tenantToSuspend.estado === 'Activo' ? 'suspender' : 'activar'} a "${tenantToSuspend.nombre}"? Sus usuarios ${tenantToSuspend.estado === 'Activo' ? 'no' : 'sí'} podrán iniciar sesión.`}
                     confirmText={tenantToSuspend.estado === 'Activo' ? 'Suspender' : 'Activar'}
                     confirmColor={tenantToSuspend.estado === 'Activo' ? 'yellow' : 'green'}
@@ -232,23 +232,23 @@ const TenantListPage: React.FC = () => {
             )}
 
             {tenantToImpersonate && (
-                 <ConfirmationModal
+                <ConfirmationModal
                     isOpen={!!tenantToImpersonate}
                     onClose={() => setTenantToImpersonate(null)}
                     onConfirm={handleImpersonate}
-                    title="Impersonar Tenant"
-                    message={`Acción Auditada: Está a punto de iniciar sesión como Administrador del tenant "${tenantToImpersonate.nombre}". Esta acción es solo para fines de soporte y quedará registrada. ¿Continuar?`}
+                    title="Impersonar Empresa"
+                    message={`Acción Auditada: Está a punto de iniciar sesión como Administrador de la empresa "${tenantToImpersonate.nombre}". Esta acción es solo para fines de soporte y quedará registrada. ¿Continuar?`}
                     confirmText="Continuar e Impersonar"
                     confirmColor="blue"
                 />
             )}
-            
+
             {tenantToDelete && (
-                 <ConfirmationModal
+                <ConfirmationModal
                     isOpen={!!tenantToDelete}
                     onClose={() => { setTenantToDelete(null); setDeleteConfirmText(''); }}
                     onConfirm={handleDelete}
-                    title={`Eliminar Tenant: ${tenantToDelete.nombre}`}
+                    title={`Eliminar Empresa: ${tenantToDelete.nombre}`}
                     confirmText="Eliminar Permanentemente"
                     confirmColor="red"
                     isConfirmDisabled={deleteConfirmText !== tenantToDelete.nombre}
@@ -265,7 +265,7 @@ const TenantListPage: React.FC = () => {
                         onChange={(e) => setDeleteConfirmText(e.target.value)}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
                     />
-                 </ConfirmationModal>
+                </ConfirmationModal>
             )}
         </>
     );

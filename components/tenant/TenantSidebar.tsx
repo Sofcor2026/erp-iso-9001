@@ -17,7 +17,12 @@ import {
     X,
     Target,
     Briefcase,
-    Wrench
+    Wrench,
+    Gavel,
+    GraduationCap,
+    TrendingUp,
+    AlertTriangle,
+    Truck
 } from 'lucide-react';
 
 const DOCUMENT_TYPES = Object.values(DocumentType);
@@ -305,8 +310,14 @@ const TenantSidebar: React.FC<TenantSidebarProps> = ({ isOpen, setIsOpen, active
 
             <div className="mt-auto pt-4 border-t border-gray-200 space-y-4">
                 <div className="px-3">
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Comercial y Humana</h3>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Gestión y Normativa</h3>
                     <ul className="space-y-1">
+                        <NavItem onClick={handleLinkClick} to="/tenant/contacts" label="Clientes y Prov." level={0} icon={Users} />
+                        <NavItem onClick={handleLinkClick} to="/tenant/legal" label="Matriz Legal" level={0} icon={Gavel} />
+                        <NavItem onClick={handleLinkClick} to="/tenant/competency" label="Competencias" level={0} icon={GraduationCap} />
+                        <NavItem onClick={handleLinkClick} to="/tenant/improvement" label="Mejora Continua" level={0} icon={TrendingUp} />
+                        <NavItem onClick={handleLinkClick} to="/tenant/risks" label="Matriz de Riesgos" level={0} icon={AlertTriangle} />
+                        <NavItem onClick={handleLinkClick} to="/tenant/suppliers" label="Eval. Proveedores" level={0} icon={Truck} />
                         <NavItem onClick={handleLinkClick} to="/tenant/quotes" label="Cotizaciones" level={0} icon={ShoppingCart} />
                         <NavItem onClick={handleLinkClick} to="/tenant/equipment" label="Dotaciones" level={0} icon={HardHat} />
                     </ul>

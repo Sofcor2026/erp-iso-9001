@@ -14,17 +14,16 @@ const TenantUserPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Bandera para habilitar/deshabilitar la gestión autónoma por parte del cliente
-    const CAN_TENANT_MANAGE_USERS = false;
+    const CAN_TENANT_MANAGE_USERS = true;
 
     const fetchUsers = useCallback(async () => {
         if (!actor?.tenantId) return;
         setLoading(true);
         try {
-            const [allUsers, tenantData] = await Promise.all([
-                api.getUsers(),
+            const [tenantUsers, tenantData] = await Promise.all([
+                api.getUsers(actor.tenantId),
                 api.getTenantById(actor.tenantId)
             ]);
-            const tenantUsers = allUsers.filter(u => u.tenantId === actor.tenantId);
             setUsers(tenantUsers);
             setTenant(tenantData);
         } catch (error) {

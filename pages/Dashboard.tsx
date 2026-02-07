@@ -9,6 +9,13 @@ import TenantAuditPage from './tenant/TenantAuditPage';
 import TenantUserPage from './tenant/TenantUserPage';
 import EquipmentPage from './tenant/EquipmentPage';
 import QuotesPage from './tenant/QuotesPage';
+import ProfilePage from './tenant/ProfilePage';
+import ContactsPage from './tenant/ContactsPage';
+import LegalMatrixPage from './tenant/LegalMatrixPage';
+import CompetencyPage from './tenant/CompetencyPage';
+import ImprovementPage from './tenant/ImprovementPage';
+import RiskMatrixPage from './tenant/RiskMatrixPage';
+import SupplierEvaluationPage from './tenant/SupplierEvaluationPage';
 import { ProcessType, DocumentType } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import TenantSidebar from '../components/tenant/TenantSidebar';
@@ -82,6 +89,13 @@ const Dashboard: React.FC = () => {
               <Route path="/tenant/users" element={<TenantUserPage />} />
               <Route path="/tenant/equipment" element={<EquipmentPage />} />
               <Route path="/tenant/quotes" element={<QuotesPage />} />
+              <Route path="/tenant/contacts" element={<ContactsPage />} />
+              <Route path="/tenant/legal" element={<LegalMatrixPage />} />
+              <Route path="/tenant/competency" element={<CompetencyPage />} />
+              <Route path="/tenant/improvement" element={<ImprovementPage />} />
+              <Route path="/tenant/risks" element={<RiskMatrixPage />} />
+              <Route path="/tenant/suppliers" element={<SupplierEvaluationPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
               <Route path="/*" element={<TenantHomeRedirect />} />
             </Routes>
           </div>

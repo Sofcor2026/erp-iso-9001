@@ -22,8 +22,11 @@ const PurchaseOrderForm: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    api.getProveedores().then(setProveedores);
-  }, []);
+    if (!user?.tenantId) return;
+    api.getContactos(user.tenantId).then(contacts => {
+      setProveedores(contacts.filter(c => c.tipo === 'PROVEEDOR'));
+    });
+  }, [user?.tenantId]);
 
   const handleAddItem = () => {
     setItems([...items, { id: `item-${Date.now()}`, descripcion: '', cantidad: 1, precioUnitario: 0 }]);
@@ -43,7 +46,7 @@ const PurchaseOrderForm: React.FC = () => {
     });
     setItems(newItems);
   };
-  
+
   const totals = useMemo(() => {
     const subtotal = items.reduce((acc, item) => acc + item.cantidad * item.precioUnitario, 0);
     const impuestos = subtotal * 0.19; // IVA 19%
@@ -54,36 +57,36 @@ const PurchaseOrderForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!proveedorId || items.some(i => !i.descripcion || i.cantidad <= 0 || i.precioUnitario <= 0)) {
-        setError('Por favor, seleccione un proveedor y complete todos los campos de los ítems correctamente.');
-        return;
+      setError('Por favor, seleccione un proveedor y complete todos los campos de los ítems correctamente.');
+      return;
     }
     if (!user) {
-        setError('No se ha podido identificar al usuario. Por favor, inicie sesión de nuevo.');
-        return;
+      setError('No se ha podido identificar al usuario. Por favor, inicie sesión de nuevo.');
+      return;
     }
 
     setError('');
     setIsSubmitting(true);
     try {
-        // FIX: Add the missing 'fecha' property to satisfy the type signature of 'createOrdenCompra'.
-        await api.createOrdenCompra({
-            proveedorId,
-            fecha: new Date().toISOString().split('T')[0],
-            items,
-            centroCosto,
-            condiciones,
-            ...totals,
-        }, user);
-        
-        alert('Orden de Compra creada exitosamente. El documento asociado se ha generado en el proceso de Apoyo.');
-        await refreshDocuments(); // Refresh document list
-        navigate(`/docs/${ProcessType.APOYO}`);
+      // FIX: Add the missing 'fecha' property to satisfy the type signature of 'createOrdenCompra'.
+      await api.createOrdenCompra({
+        proveedorId,
+        fecha: new Date().toISOString().split('T')[0],
+        items,
+        centroCosto,
+        condiciones,
+        ...totals,
+      }, user);
+
+      alert('Orden de Compra creada exitosamente. El documento asociado se ha generado en el proceso de Apoyo.');
+      await refreshDocuments(); // Refresh document list
+      navigate(`/docs/${ProcessType.APOYO}`);
 
     } catch (err) {
-        console.error(err);
-        setError('Ocurrió un error al crear la orden de compra.');
+      console.error(err);
+      setError('Ocurrió un error al crear la orden de compra.');
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -148,7 +151,7 @@ const PurchaseOrderForm: React.FC = () => {
               required
               className="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm sm:text-sm"
             />
-             <span className="w-24 text-right text-sm text-gray-600">
+            <span className="w-24 text-right text-sm text-gray-600">
               {(item.cantidad * item.precioUnitario).toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
             </span>
             <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:text-red-700 p-2">
@@ -162,34 +165,34 @@ const PurchaseOrderForm: React.FC = () => {
         </button>
       </div>
 
-       {/* Condiciones y Totales */}
-       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
-         <div>
-            <label htmlFor="condiciones" className="block text-sm font-medium text-gray-700">Condiciones de Entrega/Pago</label>
-            <textarea
-                id="condiciones"
-                value={condiciones}
-                onChange={e => setCondiciones(e.target.value)}
-                rows={3}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-primary focus:border-brand-primary sm:text-sm"
-            />
-         </div>
-         <div className="space-y-2 text-right">
-            <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-600">Subtotal:</span>
-                <span className="text-sm text-gray-800">{totals.subtotal.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}</span>
-            </div>
-             <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-600">IVA (19%):</span>
-                <span className="text-sm text-gray-800">{totals.impuestos.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}</span>
-            </div>
-             <div className="flex justify-between items-center border-t pt-2">
-                <span className="text-lg font-bold text-gray-900">Total:</span>
-                <span className="text-lg font-bold text-gray-900">{totals.total.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}</span>
-            </div>
-         </div>
-       </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+      {/* Condiciones y Totales */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
+        <div>
+          <label htmlFor="condiciones" className="block text-sm font-medium text-gray-700">Condiciones de Entrega/Pago</label>
+          <textarea
+            id="condiciones"
+            value={condiciones}
+            onChange={e => setCondiciones(e.target.value)}
+            rows={3}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-primary focus:border-brand-primary sm:text-sm"
+          />
+        </div>
+        <div className="space-y-2 text-right">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-gray-600">Subtotal:</span>
+            <span className="text-sm text-gray-800">{totals.subtotal.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-gray-600">IVA (19%):</span>
+            <span className="text-sm text-gray-800">{totals.impuestos.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}</span>
+          </div>
+          <div className="flex justify-between items-center border-t pt-2">
+            <span className="text-lg font-bold text-gray-900">Total:</span>
+            <span className="text-lg font-bold text-gray-900">{totals.total.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}</span>
+          </div>
+        </div>
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
       {/* Acciones */}
       <div className="flex justify-end pt-4 border-t">
         <button
@@ -197,7 +200,7 @@ const PurchaseOrderForm: React.FC = () => {
           disabled={isSubmitting}
           className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-brand-primary hover:bg-brand-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary disabled:bg-gray-400"
         >
-          <Send size={16} className="mr-2"/>
+          <Send size={16} className="mr-2" />
           {isSubmitting ? 'Generando...' : 'Generar Orden y Documento'}
         </button>
       </div>

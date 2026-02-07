@@ -69,7 +69,7 @@ const PlatformUserPage: React.FC = () => {
                             <tr>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuario</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Rol</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Tenant ID</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Empresa</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Estado</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
                             </tr>
@@ -104,8 +104,8 @@ const PlatformUserPage: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-1.5 text-sm text-gray-600 font-mono">
-                                                {u.tenantId || 'SISTEMA'}
+                                            <div className="flex items-center gap-1.5 text-sm text-gray-600 font-medium">
+                                                {u.tenantNombre || (u.tenantId ? 'Cargando...' : 'SISTEMA')}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">

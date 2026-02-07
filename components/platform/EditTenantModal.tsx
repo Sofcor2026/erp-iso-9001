@@ -16,7 +16,7 @@ const EditTenantModal: React.FC<EditTenantModalProps> = ({ isOpen, onClose, onSu
   const [userLimit, setUserLimit] = useState(0);
   const [storageLimit, setStorageLimit] = useState(0);
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -28,10 +28,10 @@ const EditTenantModal: React.FC<EditTenantModalProps> = ({ isOpen, onClose, onSu
 
   useEffect(() => {
     if (tenant) {
-        setNombre(tenant.nombre);
-        setPlanId(tenant.planId);
-        setUserLimit(tenant.userLimit);
-        setStorageLimit(tenant.storageLimit);
+      setNombre(tenant.nombre);
+      setPlanId(tenant.planId);
+      setUserLimit(tenant.userLimit);
+      setStorageLimit(tenant.storageLimit);
     }
   }, [tenant]);
 
@@ -47,15 +47,15 @@ const EditTenantModal: React.FC<EditTenantModalProps> = ({ isOpen, onClose, onSu
     setIsSubmitting(true);
 
     try {
-        await api.updateTenant(tenant.id, { nombre, planId, userLimit, storageLimit });
-        alert(`Tenant "${nombre}" actualizado exitosamente.`);
-        onSuccess();
-        handleClose();
+      await api.updateTenant(tenant.id, { nombre, planId, userLimit, storageLimit });
+      alert(`Tenant "${nombre}" actualizado exitosamente.`);
+      onSuccess();
+      handleClose();
     } catch (error) {
-        console.error("Failed to update tenant", error);
-        setFormError("Ocurrió un error al actualizar el tenant. Inténtelo de nuevo.");
+      console.error("Failed to update tenant", error);
+      setFormError("Ocurrió un error al actualizar el tenant. Inténtelo de nuevo.");
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -65,7 +65,7 @@ const EditTenantModal: React.FC<EditTenantModalProps> = ({ isOpen, onClose, onSu
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all duration-300">
         <div className="p-6 border-b flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800">Editar Tenant: {tenant.nombre}</h2>
+          <h2 className="text-xl font-semibold text-gray-800">Editar Empresa: {tenant.nombre}</h2>
           <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
             <X size={24} />
           </button>
@@ -73,26 +73,26 @@ const EditTenantModal: React.FC<EditTenantModalProps> = ({ isOpen, onClose, onSu
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
             <div>
-                <label htmlFor="edit-tenant-name" className="block text-sm font-medium text-gray-700">Nombre de la Empresa</label>
-                <input type="text" id="edit-tenant-name" value={nombre} onChange={e => setNombre(e.target.value)} required className="mt-1 block w-full input-style" />
+              <label htmlFor="edit-tenant-name" className="block text-sm font-medium text-gray-700">Nombre de la Empresa</label>
+              <input type="text" id="edit-tenant-name" value={nombre} onChange={e => setNombre(e.target.value)} required className="mt-1 block w-full input-style" />
             </div>
             <div>
-                <label htmlFor="edit-tenant-plan" className="block text-sm font-medium text-gray-700">Plan Asignado</label>
-                <select id="edit-tenant-plan" value={planId} onChange={e => setPlanId(e.target.value)} className="mt-1 block w-full input-style">
-                     {availablePlans.map(p => (
-                        <option key={p.id} value={p.id}>{p.nombre}</option>
-                     ))}
-                </select>
+              <label htmlFor="edit-tenant-plan" className="block text-sm font-medium text-gray-700">Plan Asignado</label>
+              <select id="edit-tenant-plan" value={planId} onChange={e => setPlanId(e.target.value)} className="mt-1 block w-full input-style">
+                {availablePlans.map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label htmlFor="edit-user-limit" className="block text-sm font-medium text-gray-700">Límite de Usuarios</label>
-                    <input type="number" id="edit-user-limit" value={userLimit} onChange={e => setUserLimit(Number(e.target.value))} required className="mt-1 block w-full input-style" />
-                </div>
-                 <div>
-                    <label htmlFor="edit-storage-limit" className="block text-sm font-medium text-gray-700">Límite Almacenamiento (GB)</label>
-                    <input type="number" id="edit-storage-limit" value={storageLimit} onChange={e => setStorageLimit(Number(e.target.value))} required className="mt-1 block w-full input-style" />
-                </div>
+              <div>
+                <label htmlFor="edit-user-limit" className="block text-sm font-medium text-gray-700">Límite de Usuarios</label>
+                <input type="number" id="edit-user-limit" value={userLimit} onChange={e => setUserLimit(Number(e.target.value))} required className="mt-1 block w-full input-style" />
+              </div>
+              <div>
+                <label htmlFor="edit-storage-limit" className="block text-sm font-medium text-gray-700">Límite Almacenamiento (GB)</label>
+                <input type="number" id="edit-storage-limit" value={storageLimit} onChange={e => setStorageLimit(Number(e.target.value))} required className="mt-1 block w-full input-style" />
+              </div>
             </div>
             {formError && <p className="text-sm text-red-600">{formError}</p>}
           </div>
@@ -101,7 +101,7 @@ const EditTenantModal: React.FC<EditTenantModalProps> = ({ isOpen, onClose, onSu
               Cancelar
             </button>
             <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary border border-transparent rounded-md shadow-sm hover:bg-brand-secondary disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center">
-              {isSubmitting && <Loader2 className="animate-spin mr-2" size={16}/>}
+              {isSubmitting && <Loader2 className="animate-spin mr-2" size={16} />}
               {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>

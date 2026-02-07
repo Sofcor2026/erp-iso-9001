@@ -25,7 +25,21 @@ export type Permission =
   'kpi:read' |
 
   // Forms
-  'form:create';
+  'form:create' |
+
+  // Legal Matrix
+  'legal:manage' |
+  'legal:read' |
+
+  // Competency & Training
+  'competency:manage' |
+  'competency:read' |
+  'improvement:manage' |
+  'improvement:read' |
+  'risk:manage' |
+  'risk:read' |
+  'supplier:evaluate' |
+  'supplier:read';
 
 
 export interface Role {
@@ -42,7 +56,40 @@ export interface User {
   nombre: string;
   role: Role;
   tenantId?: string;
+  tenantNombre?: string;
   activo: boolean;
+  jobProfileId?: string;
+  jobProfileNombre?: string;
+}
+
+export interface JobProfile {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  educacionReq?: string;
+  formacionReq?: string;
+  experienciaReq?: string;
+  habilidadesReq?: string;
+}
+
+export interface Training {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  fechaProgramada: string;
+  facilitador?: string;
+  duracionHoras?: number;
+  estado: 'Programada' | 'Realizada' | 'Cancelada';
+}
+
+export interface TrainingAttendance {
+  id: string;
+  trainingId: string;
+  userId: string;
+  userNombre?: string;
+  asistio: boolean;
+  calificacion?: number;
+  comentarios?: string;
 }
 
 export interface Plan {
@@ -172,6 +219,17 @@ export interface Contacto {
   email: string;
 }
 
+export interface LegalRequirement {
+  id: string;
+  norma: string;
+  articulo?: string;
+  descripcion: string;
+  autoridad?: string;
+  cumplimiento: boolean;
+  evidencia?: string;
+  fechaVerificacion?: string;
+}
+
 export interface OrdenCompraItem {
   id: string;
   descripcion: string;
@@ -210,4 +268,61 @@ export interface AuditLog {
   action: string;
   resource: string;
   timestamp: string;
+}
+
+export interface ImprovementFinding {
+  id: string;
+  tenantId: string;
+  fuente: string;
+  descripcion: string;
+  procesoAsociado?: string;
+  fechaReporte: string;
+  estado: 'Abierto' | 'En Análisis' | 'En Plan de Acción' | 'Cerrado';
+  analisisCausaRaiz?: {
+    cincoPorques?: string[];
+    ishikawa?: Record<string, string[]>;
+  };
+  creada_por: string;
+}
+
+export interface ImprovementAction {
+  id: string;
+  finding_id: string;
+  tarea: string;
+  responsable_id: string;
+  responsableNombre?: string;
+  fecha_limite: string;
+  fecha_verificacion?: string;
+  estado: 'Pendiente' | 'Ejecutada' | 'Verificada';
+}
+
+export interface RiskMatrix {
+  id: string;
+  tenantId: string;
+  proceso: string;
+  tipo: 'Riesgo' | 'Oportunidad';
+  descripcion: string;
+  causas?: string;
+  consecuencias?: string;
+  probabilidad: number; // 1-5
+  impacto: number; // 1-5
+  nivel_riesgo: number; // prob * imp
+  plan_mitigacion?: string;
+  responsable_id: string;
+  responsableNombre?: string;
+}
+
+export interface SupplierEvaluation {
+  id: string;
+  tenantId: string;
+  contacto_id: string;
+  contactoNombre?: string;
+  fecha_evaluacion: string;
+  criterioCalidad: number; // 0-100
+  criterioTiempo: number; // 0-100
+  criterioPrecio: number; // 0-100
+  puntajeFinal: number;
+  estado_proveedor: 'Aprobado' | 'Condicionado' | 'No Apto';
+  observaciones?: string;
+  evaluador_id: string;
 }

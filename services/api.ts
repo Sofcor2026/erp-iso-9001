@@ -1,7 +1,9 @@
 import {
     User, Role, Document, KPI, DocumentStatus, ProcessType, DocumentType,
     Contacto, OrdenCompra, Tenant, Plan, Template, TemplateType, AuditLog,
-    DocumentoHistorial, Permission, EquipmentAssignment, Quote
+    DocumentoHistorial, Permission, EquipmentAssignment, Quote, LegalRequirement,
+    JobProfile, Training, TrainingAttendance, ImprovementFinding, ImprovementAction,
+    RiskMatrix, SupplierEvaluation
 } from '../types';
 import { supabase } from '../src/lib/supabase';
 
@@ -477,9 +479,9 @@ export const api = {
     // USERS
     // =====================================================
 
-    getUsers: async (): Promise<User[]> => {
+    getUsers: async (tenantId?: string): Promise<User[]> => {
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('users')
                 .select(`
           *,
@@ -489,13 +491,21 @@ export const api = {
             description,
             permissions,
             is_default
-          )
+          ),
+          tenant:tenants (nombre)
         `);
+
+            if (tenantId) {
+                query = query.eq('tenant_id', tenantId);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
 
             return data.map(u => {
                 const roleData = Array.isArray(u.role) ? u.role[0] : u.role;
+                const tenantData = Array.isArray(u.tenant) ? u.tenant[0] : u.tenant;
                 return {
                     id: u.id,
                     email: u.email,
@@ -508,6 +518,7 @@ export const api = {
                         isDefault: roleData.is_default,
                     },
                     tenantId: u.tenant_id,
+                    tenantNombre: tenantData?.nombre,
                     activo: u.activo,
                 };
             });
@@ -638,12 +649,13 @@ export const api = {
     // CONTACTOS Y PROVEEDORES
     // =====================================================
 
-    getProveedores: async (): Promise<Contacto[]> => {
+    getContactos: async (tenantId?: string): Promise<Contacto[]> => {
         try {
-            const { data, error } = await supabase
-                .from('contactos')
-                .select('*')
-                .eq('tipo', 'PROVEEDOR');
+            let query = supabase.from('contactos').select('*');
+            if (tenantId) {
+                query = query.eq('tenant_id', tenantId);
+            }
+            const { data, error } = await query;
 
             if (error) throw error;
 
@@ -652,12 +664,259 @@ export const api = {
                 tipo: c.tipo as 'CLIENTE' | 'PROVEEDOR',
                 rut_nit: c.rut_nit,
                 razonSocial: c.razon_social,
+                razon_social: c.razon_social,
                 email: c.email,
             }));
         } catch (error) {
-            console.error('Error fetching proveedores:', error);
+            console.error('Error fetching contactos:', error);
             return [];
         }
+    },
+
+    addContacto: async (data: Omit<Contacto, 'id'>, actor: User): Promise<Contacto> => {
+        const { data: result, error } = await supabase
+            .from('contactos')
+            .insert({
+                tenant_id: actor.tenantId,
+                tipo: data.tipo,
+                rut_nit: data.rut_nit,
+                razon_social: data.razonSocial,
+                email: data.email
+            })
+            .select()
+            .single();
+        if (error) throw error;
+        await api.logAuditEvent('CONTACT_CREATE', `contact:${result.id} (${data.razonSocial})`, actor);
+        return {
+            id: result.id,
+            tipo: result.tipo,
+            rut_nit: result.rut_nit,
+            razonSocial: result.razon_social,
+            email: result.email
+        };
+    },
+
+    // =====================================================
+    // MATRIZ LEGAL
+    // =====================================================
+
+    getLegalMatrix: async (tenantId?: string): Promise<LegalRequirement[]> => {
+        try {
+            let query = supabase.from('legal_matrix').select('*');
+            if (tenantId) {
+                query = query.eq('tenant_id', tenantId);
+            }
+            const { data, error } = await query.order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            return data.map(r => ({
+                id: r.id,
+                norma: r.norma,
+                articulo: r.articulo,
+                descripcion: r.descripcion,
+                autoridad: r.autoridad,
+                cumplimiento: r.cumplimiento,
+                evidencia: r.evidencia,
+                fechaVerificacion: r.fecha_verificacion
+            }));
+        } catch (error) {
+            console.error('Error fetching legal matrix:', error);
+            return [];
+        }
+    },
+
+    addLegalRequirement: async (data: Omit<LegalRequirement, 'id'>, actor: User): Promise<LegalRequirement> => {
+        const { data: result, error } = await supabase
+            .from('legal_matrix')
+            .insert({
+                tenant_id: actor.tenantId,
+                norma: data.norma,
+                articulo: data.articulo,
+                descripcion: data.descripcion,
+                autoridad: data.autoridad,
+                cumplimiento: data.cumplimiento,
+                evidencia: data.evidencia,
+                fecha_verificacion: data.fechaVerificacion
+            })
+            .select()
+            .single();
+        if (error) throw error;
+        await api.logAuditEvent('LEGAL_CREATE', `legal:${result.id} (${data.norma})`, actor);
+        return {
+            id: result.id,
+            norma: result.norma,
+            articulo: result.articulo,
+            descripcion: result.descripcion,
+            autoridad: result.autoridad,
+            cumplimiento: result.cumplimiento,
+            evidencia: result.evidencia,
+            fechaVerificacion: result.fecha_verificacion
+        };
+    },
+
+    updateLegalRequirement: async (id: string, data: Partial<LegalRequirement>, actor: User): Promise<LegalRequirement> => {
+        const updates: any = {};
+        if (data.norma !== undefined) updates.norma = data.norma;
+        if (data.articulo !== undefined) updates.articulo = data.articulo;
+        if (data.descripcion !== undefined) updates.descripcion = data.descripcion;
+        if (data.autoridad !== undefined) updates.autoridad = data.autoridad;
+        if (data.cumplimiento !== undefined) updates.cumplimiento = data.cumplimiento;
+        if (data.evidencia !== undefined) updates.evidencia = data.evidencia;
+        if (data.fechaVerificacion !== undefined) updates.fecha_verificacion = data.fechaVerificacion;
+
+        const { data: result, error } = await supabase
+            .from('legal_matrix')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        await api.logAuditEvent('LEGAL_UPDATE', `legal:${id}`, actor);
+        return {
+            id: result.id,
+            norma: result.norma,
+            articulo: result.articulo,
+            descripcion: result.descripcion,
+            autoridad: result.autoridad,
+            cumplimiento: result.cumplimiento,
+            evidencia: result.evidencia,
+            fechaVerificacion: result.fecha_verificacion
+        };
+    },
+
+    deleteLegalRequirement: async (id: string, actor: User): Promise<void> => {
+        const { error } = await supabase.from('legal_matrix').delete().eq('id', id);
+        if (error) throw error;
+        await api.logAuditEvent('LEGAL_DELETE', `legal:${id}`, actor);
+    },
+
+    // =====================================================
+    // GESTIÓN DE COMPETENCIAS Y CAPACITACIONES
+    // =====================================================
+
+    getJobProfiles: async (tenantId?: string): Promise<JobProfile[]> => {
+        try {
+            let query = supabase.from('job_profiles').select('*');
+            if (tenantId) query = query.eq('tenant_id', tenantId);
+            const { data, error } = await query.order('nombre');
+            if (error) throw error;
+            return data.map(jp => ({
+                id: jp.id,
+                nombre: jp.nombre,
+                descripcion: jp.descripcion,
+                educacionReq: jp.educacion_req,
+                formacionReq: jp.formacion_req,
+                experienciaReq: jp.experiencia_req,
+                habilidadesReq: jp.habilidades_req
+            }));
+        } catch (error) {
+            console.error('Error fetching job profiles:', error);
+            return [];
+        }
+    },
+
+    addJobProfile: async (data: Omit<JobProfile, 'id'>, actor: User): Promise<JobProfile> => {
+        const { data: result, error } = await supabase
+            .from('job_profiles')
+            .insert({
+                tenant_id: actor.tenantId,
+                nombre: data.nombre,
+                descripcion: data.descripcion,
+                educacion_req: data.educacionReq,
+                formacion_req: data.formacionReq,
+                experiencia_req: data.experienciaReq,
+                habilidades_req: data.habilidadesReq
+            })
+            .select().single();
+        if (error) throw error;
+        await api.logAuditEvent('JOB_PROFILE_CREATE', `jp:${result.id} (${data.nombre})`, actor);
+        return {
+            id: result.id,
+            nombre: result.nombre,
+            descripcion: result.descripcion,
+            educacionReq: result.educacion_req,
+            formacionReq: result.formacion_req,
+            experienciaReq: result.experiencia_req,
+            habilidadesReq: result.habilidades_req
+        };
+    },
+
+    getTrainings: async (tenantId?: string): Promise<Training[]> => {
+        try {
+            let query = supabase.from('trainings').select('*');
+            if (tenantId) query = query.eq('tenant_id', tenantId);
+            const { data, error } = await query.order('fecha_programada', { ascending: false });
+            if (error) throw error;
+            return data.map(t => ({
+                id: t.id,
+                nombre: t.nombre,
+                descripcion: t.descripcion,
+                fechaProgramada: t.fecha_programada,
+                facilitador: t.facilitador,
+                duracionHoras: parseFloat(t.duracion_horas),
+                estado: t.estado
+            }));
+        } catch (error) {
+            console.error('Error fetching trainings:', error);
+            return [];
+        }
+    },
+
+    addTraining: async (data: Omit<Training, 'id'>, actor: User): Promise<Training> => {
+        const { data: result, error } = await supabase
+            .from('trainings')
+            .insert({
+                tenant_id: actor.tenantId,
+                nombre: data.nombre,
+                descripcion: data.descripcion,
+                fecha_programada: data.fechaProgramada,
+                facilitador: data.facilitador,
+                duracion_horas: data.duracionHoras,
+                estado: data.estado
+            })
+            .select().single();
+        if (error) throw error;
+        await api.logAuditEvent('TRAINING_CREATE', `train:${result.id} (${data.nombre})`, actor);
+        return {
+            id: result.id,
+            nombre: result.nombre,
+            descripcion: result.descripcion,
+            fechaProgramada: result.fecha_programada,
+            facilitador: result.facilitador,
+            duracionHoras: parseFloat(result.duracion_horas),
+            estado: result.estado
+        };
+    },
+
+    getTrainingAttendance: async (trainingId: string): Promise<TrainingAttendance[]> => {
+        const { data, error } = await supabase
+            .from('training_attendance')
+            .select('*, user:users(nombre)')
+            .eq('training_id', trainingId);
+        if (error) throw error;
+        return data.map(a => ({
+            id: a.id,
+            trainingId: a.training_id,
+            userId: a.user_id,
+            userNombre: a.user?.nombre,
+            asistio: a.asistio,
+            calificacion: a.calificacion ? parseFloat(a.calificacion) : undefined,
+            comentarios: a.comentarios
+        }));
+    },
+
+    updateAttendance: async (attendance: Omit<TrainingAttendance, 'id' | 'userNombre'>): Promise<void> => {
+        const { error } = await supabase
+            .from('training_attendance')
+            .upsert({
+                training_id: attendance.trainingId,
+                user_id: attendance.userId,
+                asistio: attendance.asistio,
+                calificacion: attendance.calificacion,
+                comentarios: attendance.comentarios
+            }, { onConflict: 'training_id,user_id' });
+        if (error) throw error;
     },
 
     // =====================================================
@@ -779,19 +1038,22 @@ export const api = {
 
             if (!data) return [];
 
-            const mapped = data.map(t => ({
-                id: t.id,
-                nombre: t.nombre,
-                subdominio: t.subdominio,
-                planId: t.plan_id,
-                planNombre: (Array.isArray(t.plan) ? t.plan[0] : t.plan)?.nombre || 'Unknown',
-                estado: t.estado as 'Activo' | 'Suspendido' | 'Prueba',
-                fechaCreacion: t.fecha_creacion,
-                userCount: t.user_count,
-                storageUsed: parseFloat(t.storage_used),
-                userLimit: (Array.isArray(t.plan) ? t.plan[0] : t.plan)?.user_limit || 0,
-                storageLimit: (Array.isArray(t.plan) ? t.plan[0] : t.plan)?.storage_limit || 0,
-            }));
+            const mapped = data.map(t => {
+                const planData = Array.isArray(t.plan) ? t.plan[0] : t.plan;
+                return {
+                    id: t.id,
+                    nombre: t.nombre,
+                    subdominio: t.subdominio,
+                    planId: t.plan_id,
+                    planNombre: planData?.nombre || 'Unknown',
+                    estado: t.estado as 'Activo' | 'Suspendido' | 'Prueba',
+                    fechaCreacion: t.fecha_creacion,
+                    userCount: t.user_count,
+                    storageUsed: parseFloat(t.storage_used),
+                    userLimit: t.user_limit || planData?.user_limit || 0,
+                    storageLimit: t.storage_limit || planData?.storage_limit || 0,
+                };
+            });
 
             console.log('[API] getTenants mapped data:', mapped);
             return mapped;
@@ -814,18 +1076,20 @@ export const api = {
 
             if (error) throw error;
 
+            const planData = Array.isArray(data.plan) ? data.plan[0] : data.plan;
+
             return {
                 id: data.id,
                 nombre: data.nombre,
                 subdominio: data.subdominio,
                 planId: data.plan_id,
-                planNombre: (Array.isArray(data.plan) ? data.plan[0] : data.plan)?.nombre || 'Unknown',
+                planNombre: planData?.nombre || 'Unknown',
                 estado: data.estado as 'Activo' | 'Suspendido' | 'Prueba',
                 fechaCreacion: data.fecha_creacion,
                 userCount: data.user_count,
                 storageUsed: parseFloat(data.storage_used),
-                userLimit: (Array.isArray(data.plan) ? data.plan[0] : data.plan)?.user_limit || 0,
-                storageLimit: (Array.isArray(data.plan) ? data.plan[0] : data.plan)?.storage_limit || 0,
+                userLimit: data.user_limit || planData?.user_limit || 0,
+                storageLimit: data.storage_limit || planData?.storage_limit || 0,
             };
         } catch (error) {
             console.error('Error fetching tenant by id:', error);
@@ -936,6 +1200,8 @@ export const api = {
             const updates: any = {};
             if (data.nombre) updates.nombre = data.nombre;
             if (data.planId) updates.plan_id = data.planId;
+            if (data.userLimit !== undefined) updates.user_limit = data.userLimit;
+            if (data.storageLimit !== undefined) updates.storage_limit = data.storageLimit;
 
             const { data: updatedTenant, error } = await supabase
                 .from('tenants')
@@ -949,18 +1215,20 @@ export const api = {
 
             if (error) throw error;
 
+            const planData = updatedTenant.plan;
+
             return {
                 id: updatedTenant.id,
                 nombre: updatedTenant.nombre,
                 subdominio: updatedTenant.subdominio,
                 planId: updatedTenant.plan_id,
-                planNombre: updatedTenant.plan?.nombre || 'Unknown',
+                planNombre: planData?.nombre || 'Unknown',
                 estado: updatedTenant.estado as 'Activo' | 'Suspendido' | 'Prueba',
                 fechaCreacion: updatedTenant.fecha_creacion,
                 userCount: updatedTenant.user_count,
                 storageUsed: parseFloat(updatedTenant.storage_used),
-                userLimit: updatedTenant.plan?.user_limit || 0,
-                storageLimit: updatedTenant.plan?.storage_limit || 0,
+                userLimit: updatedTenant.user_limit || planData?.user_limit || 0,
+                storageLimit: updatedTenant.storage_limit || planData?.storage_limit || 0,
             };
         } catch (error) {
             console.error('Error updating tenant:', error);
@@ -1773,5 +2041,206 @@ export const api = {
             console.error('Error creating new document version:', error);
             throw new Error(error.message || 'No se pudo crear la nueva versión');
         }
+    },
+
+    // =====================================================
+    // ISO 9001 MODULES (MEJORA, RIESGOS, PROVEEDORES)
+    // =====================================================
+
+    getImprovementFindings: async (tenantId?: string): Promise<ImprovementFinding[]> => {
+        try {
+            let query = supabase.from('improvement_findings').select('*');
+            if (tenantId) query = query.eq('tenant_id', tenantId);
+            const { data, error } = await query.order('created_at', { ascending: false });
+            if (error) throw error;
+            return data.map(f => ({
+                id: f.id,
+                tenantId: f.tenant_id,
+                fuente: f.fuente,
+                descripcion: f.descripcion,
+                procesoAsociado: f.proceso_asociado,
+                fechaReporte: f.fecha_reporte,
+                estado: f.estado as any,
+                analisisCausaRaiz: f.analisis_causa_raiz,
+                creada_por: f.creado_por
+            }));
+        } catch (error) {
+            console.error('Error fetching findings:', error);
+            return [];
+        }
+    },
+
+    addImprovementFinding: async (data: Omit<ImprovementFinding, 'id' | 'tenantId' | 'estado' | 'fechaReporte' | 'creada_por'>, actor: User): Promise<ImprovementFinding> => {
+        const { data: result, error } = await supabase
+            .from('improvement_findings')
+            .insert({
+                tenant_id: actor.tenantId,
+                fuente: data.fuente,
+                descripcion: data.descripcion,
+                proceso_asociado: data.procesoAsociado,
+                estado: 'Abierto',
+                creado_por: actor.id
+            })
+            .select().single();
+        if (error) throw error;
+        await api.logAuditEvent('IMPROVEMENT_FINDING_CREATE', `finding:${result.id}`, actor);
+        return {
+            ...data,
+            id: result.id,
+            tenantId: result.tenant_id,
+            estado: 'Abierto',
+            fechaReporte: result.fecha_reporte,
+            creada_por: actor.id
+        };
+    },
+
+    getRiskMatrix: async (tenantId?: string): Promise<RiskMatrix[]> => {
+        try {
+            let query = supabase.from('risk_matrix').select('*');
+            if (tenantId) query = query.eq('tenant_id', tenantId);
+            const { data, error } = await query.order('probabilidad', { ascending: false });
+            if (error) throw error;
+            return data.map(r => ({
+                id: r.id,
+                tenantId: r.tenant_id,
+                proceso: r.proceso,
+                tipo: r.tipo as any,
+                descripcion: r.descripcion,
+                causas: r.causas,
+                consecuencias: r.consecuencias,
+                probabilidad: r.probabilidad,
+                impacto: r.impacto,
+                nivel_riesgo: r.probabilidad * r.impacto,
+                plan_mitigacion: r.plan_mitigacion,
+                responsable_id: r.responsable_id
+            }));
+        } catch (error) {
+            console.error('Error fetching risk matrix:', error);
+            return [];
+        }
+    },
+
+    getSupplierEvaluations: async (tenantId?: string): Promise<SupplierEvaluation[]> => {
+        try {
+            let query = supabase.from('supplier_evaluations').select('*, contacto:contactos(razon_social)');
+            if (tenantId) query = query.eq('tenant_id', tenantId);
+            const { data, error } = await query.order('fecha_evaluacion', { ascending: false });
+            if (error) throw error;
+            return data.map(e => ({
+                id: e.id,
+                tenantId: e.tenant_id,
+                contacto_id: e.contacto_id,
+                contactoNombre: (Array.isArray(e.contacto) ? e.contacto[0] : e.contacto)?.razon_social || 'Proveedor',
+                fecha_evaluacion: e.fecha_evaluacion,
+                criterioCalidad: e.criterio_calidad,
+                criterioTiempo: e.criterio_tiempo,
+                criterioPrecio: e.criterio_precio,
+                puntajeFinal: parseFloat(e.puntaje_final),
+                estado_proveedor: e.estado_proveedor as any,
+                observaciones: e.observaciones,
+                evaluador_id: e.evaluador_id
+            }));
+        } catch (error) {
+            console.error('Error fetching supplier evals:', error);
+            return [];
+        }
+    },
+
+    addSupplierEvaluation: async (data: Omit<SupplierEvaluation, 'id' | 'tenantId' | 'evaluador_id'>, actor: User): Promise<SupplierEvaluation> => {
+        const { data: result, error } = await supabase
+            .from('supplier_evaluations')
+            .insert({
+                tenant_id: actor.tenantId,
+                contacto_id: data.contacto_id,
+                fecha_evaluacion: data.fecha_evaluacion,
+                criterio_calidad: data.criterioCalidad,
+                criterio_tiempo: data.criterioTiempo,
+                criterio_precio: data.criterioPrecio,
+                puntaje_final: data.puntajeFinal,
+                estado_proveedor: data.estado_proveedor,
+                observaciones: data.observaciones,
+                evaluador_id: actor.id
+            })
+            .select().single();
+        if (error) throw error;
+        await api.logAuditEvent('SUPPLIER_EVALUATION_CREATE', `eval:${result.id}`, actor);
+        return { ...data, id: result.id, tenantId: result.tenant_id, evaluador_id: actor.id };
+    },
+
+    addRiskMatrix: async (data: Omit<RiskMatrix, 'id' | 'tenantId' | 'nivel_riesgo'>, actor: User): Promise<RiskMatrix> => {
+        const { data: result, error } = await supabase
+            .from('risk_matrix')
+            .insert({
+                tenant_id: actor.tenantId,
+                proceso: data.proceso,
+                tipo: data.tipo,
+                descripcion: data.descripcion,
+                causas: data.causas,
+                consecuencias: data.consecuencias,
+                probabilidad: data.probabilidad,
+                impacto: data.impacto,
+                plan_mitigacion: data.plan_mitigacion,
+                responsable_id: data.responsable_id || actor.id
+            })
+            .select().single();
+        if (error) throw error;
+        await api.logAuditEvent('RISK_MATRIX_CREATE', `risk:${result.id}`, actor);
+        return { ...data, id: result.id, tenantId: result.tenant_id, nivel_riesgo: data.probabilidad * data.impacto };
+    },
+
+    updateImprovementFinding: async (id: string, updates: Partial<ImprovementFinding>, actor: User): Promise<void> => {
+        const { error } = await supabase
+            .from('improvement_findings')
+            .update({
+                fuente: updates.fuente,
+                descripcion: updates.descripcion,
+                proceso_asociado: updates.procesoAsociado,
+                estado: updates.estado,
+                analisis_causa_raiz: updates.analisisCausaRaiz
+            })
+            .eq('id', id);
+        if (error) throw error;
+        await api.logAuditEvent('IMPROVEMENT_FINDING_UPDATE', `finding:${id}`, actor);
+    },
+
+    getImprovementActions: async (findingId: string): Promise<ImprovementAction[]> => {
+        const { data, error } = await supabase
+            .from('improvement_actions')
+            .select('*, responsable:users(nombre)')
+            .eq('finding_id', findingId);
+        if (error) throw error;
+        return data.map(a => ({
+            id: a.id,
+            finding_id: a.finding_id,
+            tarea: a.tarea,
+            responsable_id: a.responsable_id,
+            responsableNombre: a.responsable?.nombre,
+            fecha_limite: a.fecha_limite,
+            fecha_verificacion: a.fecha_verificacion,
+            estado: a.estado
+        }));
+    },
+
+    addImprovementAction: async (data: Omit<ImprovementAction, 'id' | 'responsableNombre'>, actor: User): Promise<void> => {
+        const { error } = await supabase
+            .from('improvement_actions')
+            .insert({
+                finding_id: data.finding_id,
+                tarea: data.tarea,
+                responsable_id: data.responsable_id,
+                fecha_limite: data.fecha_limite,
+                estado: 'Pendiente'
+            });
+        if (error) throw error;
+        await api.logAuditEvent('IMPROVEMENT_ACTION_CREATE', `action:${data.finding_id}`, actor);
+    },
+
+    updateQuoteStatus: async (id: string, estado: Quote['estado'], actor: User): Promise<void> => {
+        const { error } = await supabase
+            .from('cotizaciones')
+            .update({ estado })
+            .eq('id', id);
+        if (error) throw error;
+        await api.logAuditEvent('QUOTE_UPDATE_STATUS', `quote:${id} to ${estado}`, actor);
     },
 };
