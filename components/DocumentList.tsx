@@ -8,6 +8,7 @@ import UploadDocumentModal from './UploadDocumentModal';
 import SpreadsheetEditor from './SpreadsheetEditor';
 import { api } from '../services/api';
 import DocumentActions from './DocumentActions';
+import EditDocumentModal from './EditDocumentModal';
 
 const statusConfig = {
     [DocumentStatus.VIGENTE]: { color: 'bg-status-green', text: 'text-white' },
@@ -98,6 +99,7 @@ const DocumentList: React.FC = () => {
     const [isUploadModalOpen, setUploadModalOpen] = useState(false);
     const [tenant, setTenant] = useState<any>(null);
     const [isStorageLimitReached, setIsStorageLimitReached] = useState(false);
+    const [selectedEditDocument, setSelectedEditDocument] = useState<Document | null>(null);
 
     const [editingDocument, setEditingDocument] = useState<Document | null>(null);
     const [filterName, setFilterName] = useState('');
@@ -150,7 +152,7 @@ const DocumentList: React.FC = () => {
         if (doc.contentType === 'spreadsheet') {
             setEditingDocument(doc);
         } else {
-            window.open(doc.archivoUrl, '_blank');
+            setSelectedEditDocument(doc);
         }
     };
 
@@ -305,19 +307,19 @@ const DocumentList: React.FC = () => {
                     </div>
                 </div>
                 {/* Desktop Table View */}
-                <div className="overflow-x-auto hidden lg:block">
+                <div className="hidden lg:block">
                     <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-gray-50 text-[10px] sm:text-xs">
                             <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Versión</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsable</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Última Revisión</th>
-                                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Acciones</span></th>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Versión</th>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Responsable</th>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Última Revisión</th>
+                                <th scope="col" className="relative px-6 py-3 min-w-[100px]"><span className="sr-only">Acciones</span></th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="bg-white divide-y divide-gray-200 min-h-[300px]">
                             {filteredDocuments.map(doc => (
                                 <DocumentRow key={doc.id} doc={doc} onStatusChange={handleStatusChange} onView={handleView} isExpiring={expiringDocIds.has(doc.id)} />
                             ))}
@@ -348,6 +350,13 @@ const DocumentList: React.FC = () => {
                     document={editingDocument}
                     user={user}
                     onClose={() => setEditingDocument(null)}
+                />
+            )}
+            {selectedEditDocument && (
+                <EditDocumentModal
+                    isOpen={!!selectedEditDocument}
+                    onClose={() => setSelectedEditDocument(null)}
+                    document={selectedEditDocument}
                 />
             )}
         </>

@@ -11,6 +11,7 @@ interface DataContextType {
   fetchData: () => Promise<void>;
   updateDocumentStatus: (docId: string, status: Document['estado'], actor: User) => Promise<void>;
   updateDocument: (docId: string, data: Partial<Omit<Document, 'id'>>) => Promise<void>;
+  createNewVersion: (docId: string) => Promise<void>;
   addDocument: (doc: Document) => void;
 }
 
@@ -57,7 +58,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (doc.estado !== DocumentStatus.VIGENTE) {
           return false;
         }
-        
+
         const [year, month, day] = doc.fechaRevision.split('-').map(Number);
         const revisionDate = new Date(year, month - 1, day);
         revisionDate.setHours(0, 0, 0, 0);
@@ -72,12 +73,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateDocumentStatus = async (docId: string, status: Document['estado'], actor: User) => {
     try {
       const updatedDoc = await api.updateDocumentStatus(docId, status, actor);
-      setDocuments(prevDocs => 
+
+      if (status === DocumentStatus.VIGENTE) {
+        // Al publicar una versión, otras se vuelven obsoletas, mejor refrescar todo
+        await fetchData();
+      } else {
+        setDocuments(prevDocs =>
           prevDocs.map(doc => doc.id === docId ? updatedDoc : doc)
-      );
-    } catch(error) {
-        console.error("Failed to update document status", error);
-        // In a real app, you might want to show a notification to the user
+        );
+      }
+    } catch (error) {
+      console.error("Failed to update document status", error);
     }
   };
 
@@ -85,22 +91,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) throw new Error("User not authenticated for update");
     try {
       const updatedDoc = await api.updateDocument(docId, data, user);
-      setDocuments(prevDocs => 
-          prevDocs.map(doc => doc.id === docId ? updatedDoc : doc)
+      setDocuments(prevDocs =>
+        prevDocs.map(doc => doc.id === docId ? updatedDoc : doc)
       );
-    } catch(error) {
-        console.error("Failed to update document", error);
-        throw error;
+    } catch (error) {
+      console.error("Failed to update document", error);
+      throw error;
     }
   };
 
+
+  const createNewVersion = async (docId: string) => {
+    if (!user) throw new Error("User not authenticated");
+    try {
+      const newVersion = await api.createNewVersion(docId, user);
+      setDocuments(prevDocs => [newVersion, ...prevDocs]);
+    } catch (error) {
+      console.error("Failed to create new version", error);
+      throw error;
+    }
+  };
 
   const addDocument = (doc: Document) => {
     setDocuments(prevDocs => [doc, ...prevDocs]);
   };
 
   return (
-    <DataContext.Provider value={{ documents, kpis, loading, fetchData, updateDocumentStatus, addDocument, updateDocument, expiringDocuments }}>
+    <DataContext.Provider value={{ documents, kpis, loading, fetchData, updateDocumentStatus, addDocument, updateDocument, createNewVersion, expiringDocuments }}>
       {children}
     </DataContext.Provider>
   );

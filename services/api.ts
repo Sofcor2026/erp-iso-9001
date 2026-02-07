@@ -122,6 +122,16 @@ export const api = {
 
             if (error) throw error;
 
+            // Si se publica, poner versiones anteriores como obsoletas
+            if (status === DocumentStatus.VIGENTE) {
+                await supabase
+                    .from('documents')
+                    .update({ estado: DocumentStatus.OBSOLETO })
+                    .eq('tenant_id', data.tenant_id)
+                    .eq('codigo', data.codigo)
+                    .neq('id', docId);
+            }
+
             // Agregar entrada al historial
             await supabase.from('document_history').insert({
                 document_id: docId,
@@ -149,6 +159,7 @@ export const api = {
                 fechaEmision: data.fecha_emision,
                 fechaRevision: data.fecha_revision,
                 archivoUrl: data.archivo_url || '#',
+                contentType: data.content_type as 'file' | 'spreadsheet'
             };
         } catch (error) {
             console.error('Error updating document status:', error);
@@ -1680,5 +1691,87 @@ export const api = {
             });
         if (error) throw error;
         await api.logAuditEvent('DOCUMENT_DATA_UPDATE', `doc:${docId}`, actor);
+    },
+
+    createNewVersion: async (docId: string, actor: User): Promise<Document> => {
+        try {
+            // 1. Obtener el documento actual
+            const { data: oldDoc, error: fetchError } = await supabase
+                .from('documents')
+                .select('*')
+                .eq('id', docId)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            // 2. Insertar el nuevo registro (Clonado)
+            // Nota: Mantenemos el mismo código y nombre, pero reseteamos el estado a Borrador
+            // e incrementamos la versión.
+            const today = new Date().toISOString().split('T')[0];
+            const { data: newDoc, error: insertError } = await supabase
+                .from('documents')
+                .insert({
+                    tenant_id: oldDoc.tenant_id,
+                    codigo: oldDoc.codigo,
+                    nombre: oldDoc.nombre,
+                    proceso: oldDoc.proceso,
+                    subproceso: oldDoc.subproceso,
+                    tipo: oldDoc.tipo,
+                    version: oldDoc.version + 1,
+                    estado: DocumentStatus.BORRADOR,
+                    responsable_id: actor.id, // El que crea la versión es el nuevo responsable temporal
+                    fecha_emision: today,
+                    fecha_revision: today,
+                    archivo_url: oldDoc.archivo_url, // Mantenemos el archivo actual como base
+                    file_size: oldDoc.file_size,
+                    content_type: oldDoc.content_type
+                })
+                .select(`
+                    *,
+                    responsable:users!responsable_id (nombre)
+                `)
+                .single();
+
+            if (insertError) throw insertError;
+
+            // 3. Clonar datos de spreadsheet si existen
+            if (oldDoc.content_type === 'spreadsheet') {
+                const oldData = await api.getDocumentData(docId);
+                if (oldData.length > 0) {
+                    await api.updateDocumentData(newDoc.id, oldData, actor);
+                }
+            }
+
+            // 4. Registrar en historial
+            await supabase.from('document_history').insert({
+                document_id: newDoc.id,
+                autor: actor.nombre,
+                version: newDoc.version,
+                cambios: `Nueva versión (${newDoc.version}) creada a partir de la versión ${oldDoc.version}.`
+            });
+
+            await api.logAuditEvent('DOCUMENT_VERSION_CREATE', `doc:${newDoc.id} (v${newDoc.version})`, actor);
+
+            return {
+                id: newDoc.id,
+                codigo: newDoc.codigo,
+                nombre: newDoc.nombre,
+                proceso: newDoc.proceso as ProcessType,
+                subproceso: newDoc.subproceso,
+                tipo: newDoc.tipo as DocumentType,
+                version: newDoc.version,
+                estado: newDoc.estado as DocumentStatus,
+                responsableId: newDoc.responsable_id,
+                responsableNombre: newDoc.responsable?.nombre || actor.nombre,
+                fechaEmision: newDoc.fecha_emision,
+                fechaRevision: newDoc.fecha_revision,
+                archivoUrl: newDoc.archivo_url,
+                fileSize: newDoc.file_size,
+                contentType: newDoc.content_type
+            };
+        } catch (error: any) {
+            console.error('Error creating new document version:', error);
+            throw new Error(error.message || 'No se pudo crear la nueva versión');
+        }
     },
 };
