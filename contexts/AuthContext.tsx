@@ -26,26 +26,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             console.log('[Auth] Fetching profile for:', authUserId);
 
+            // Timeout para las consultas a la base de datos para evitar bloqueos infinitos
+            // En TSX, usamos <T,> para evitar confusión con etiquetas JSX
+            const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number = 5000): Promise<T> => {
+                return Promise.race([
+                    promise,
+                    new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error('Query timeout')), timeoutMs)
+                    )
+                ]);
+            };
+
             // Primero el usuario con una consulta simple para evitar errores de joins complejos si hay problemas de RLS
-            const { data: userDataRaw, error: userError } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', authUserId)
-                .single();
+            const { data: userDataRaw, error: userError } = await withTimeout(
+                supabase
+                    .from('users')
+                    .select('*')
+                    .eq('id', authUserId)
+                    .single()
+            );
 
             if (userError || !userDataRaw) {
-                console.error('[Auth] User record not found:', userError);
+                console.error('[Auth] User record not found or error:', userError);
                 return null;
             }
 
             // Luego el rol por separado para asegurar que no falle todo el login por un join
-            const { data: roleDataRaw, error: roleError } = await supabase
-                .from('roles')
-                .select('*')
-                .eq('id', userDataRaw.role_id)
-                .single();
+            const { data: roleDataRaw, error: roleError } = await withTimeout(
+                supabase
+                    .from('roles')
+                    .select('*')
+                    .eq('id', userDataRaw.role_id)
+                    .single()
+            );
 
-            if (roleError) {
+            if (roleError || !roleDataRaw) {
                 console.error('[Auth] Role not found for user:', roleError);
                 return null;
             }
@@ -65,37 +80,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 activo: userDataRaw.activo,
             };
 
+            console.log('[Auth] Profile fetched successfully');
             return userData;
         } catch (err) {
-            console.error('[Auth] Critical error in fetchUserData:', err);
+            console.error('[Auth] Critical error or timeout in fetchUserData:', err);
             return null;
         }
     }, []);
 
 
     useEffect(() => {
+        // En producción el initRef previene doble ejecución
         if (initRef.current) return;
         initRef.current = true;
+
+        let isSubscribed = true;
 
         const initialize = async () => {
             console.log('[Auth] Starting initial session check...');
             try {
                 const { data: { session } } = await supabase.auth.getSession();
-                if (session?.user) {
+                console.log('[Auth] Session check result:', session ? 'Session found' : 'No session');
+
+                if (session?.user && isSubscribed) {
                     const userData = await fetchUserData(session.user.id);
-                    if (userData) {
+                    if (userData && isSubscribed) {
+                        console.log('[Auth] User data loaded from session');
                         setUser(userData);
                         const stored = localStorage.getItem('erp-original-user');
                         if (stored) {
                             try { setOriginalUser(JSON.parse(stored)); } catch { localStorage.removeItem('erp-original-user'); }
                         }
+                    } else if (isSubscribed) {
+                        console.warn('[Auth] No profile data found for session user');
                     }
                 }
             } catch (err) {
                 console.error('[Auth] Init error:', err);
             } finally {
-                setLoading(false);
-                console.log('[Auth] Initialization finished.');
+                if (isSubscribed) {
+                    setLoading(false);
+                    console.log('[Auth] Initialization finished.');
+                }
             }
         };
 
@@ -103,34 +129,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log('[Auth] State change event:', event);
-            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-                if (session?.user) {
-                    const userData = await fetchUserData(session.user.id);
-                    if (userData) setUser(userData);
+            try {
+                if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+                    if (session?.user && isSubscribed) {
+                        const userData = await fetchUserData(session.user.id);
+                        if (userData && isSubscribed) {
+                            setUser(userData);
+                        } else if (isSubscribed) {
+                            console.warn('[Auth] Failed to update user data after event:', event);
+                        }
+                    }
+                } else if (event === 'SIGNED_OUT') {
+                    if (isSubscribed) {
+                        setUser(null);
+                        setOriginalUser(null);
+                        localStorage.removeItem('erp-original-user');
+                    }
                 }
-            } else if (event === 'SIGNED_OUT') {
-                setUser(null);
-                setOriginalUser(null);
-                localStorage.removeItem('erp-original-user');
+            } catch (err) {
+                console.error('[Auth] Error in onAuthStateChange:', err);
+            } finally {
+                if (isSubscribed) {
+                    setLoading(false);
+                }
             }
-            setLoading(false);
         });
 
-        // Fallback: si después de 6 segundos seguimos cargando, forzar el fin de carga
-        // Esto previene que el sistema se quede colgado en "Iniciando sistema..."
+        // Fallback: si después de 10 segundos seguimos cargando, forzar el fin de carga
         const timer = setTimeout(() => {
-            setLoading(prev => {
-                if (prev) {
-                    console.warn('[Auth] Loading timeout reached. Forcing load completion.');
-                    return false;
-                }
-                return prev;
-            });
-        }, 6000);
+            if (isSubscribed) {
+                setLoading(prev => {
+                    if (prev) {
+                        console.warn('[Auth] Loading timeout reached. Force completing loading state.');
+                        return false;
+                    }
+                    return prev;
+                });
+            }
+        }, 10000);
 
         return () => {
+            isSubscribed = false;
             subscription.unsubscribe();
             clearTimeout(timer);
+            // No reseteamos initRef.current para evitar re-ejecución en StrictMode si sobrevive el componente
         };
     }, [fetchUserData]);
 
